@@ -1,0 +1,207 @@
+"""
+experiment.py
+-------------
+VerificationCollapseExperiment: the main 20-iteration loop.
+
+Usage
+-----
+    from src.experiment import VerificationCollapseExperiment
+    exp = VerificationCollapseExperiment.from_config("config.yaml")
+    exp.run()
+"""
+
+from __future__ import annotations
+
+import random
+from pathlib import Path
+from typing import Optional
+
+import wandb
+import yaml
+
+from .gsm8k_loader import GSM8KDataset
+from .verifier import ModelVerifier
+from .utils import (
+    find_hard_negatives,
+    mix_batches,
+    summarise_iteration,
+)
+
+
+class VerificationCollapseExperiment:
+    """
+    Orchestrates the iterative self-training loop.
+
+    Parameters
+    ----------
+    config : dict
+        Full config dict (loaded from config.yaml).
+    verifier : ModelVerifier
+        Pre-initialised model wrapper.
+    train_data : list[dict]
+        Training split records.
+    val_data : list[dict]
+        Validation split records.
+    """
+
+    def __init__(
+        self,
+        config: dict,
+        verifier: ModelVerifier,
+        train_data: list[dict],
+        val_data: list[dict],
+    ):
+        self.config = config
+        self.verifier = verifier
+        self.train_data = train_data
+        self.val_data = val_data
+        self.hard_negative_bank: list[dict] = []
+        self.rng = random.Random(config["data"]["seed"])
+
+    # ------------------------------------------------------------------
+    # Factory
+    # ------------------------------------------------------------------
+
+    @classmethod
+    def from_config(
+        cls,
+        config_path: str | Path = "config.yaml",
+        wandb_run: Optional[wandb.sdk.wandb_run.Run] = None,  # type: ignore[name-defined]
+    ) -> "VerificationCollapseExperiment":
+        """Load config, dataset, and model; return a ready experiment."""
+        config_path = Path(config_path)
+        with open(config_path, "r") as f:
+            config = yaml.safe_load(f)
+
+        dcfg = config["data"]
+        cache = Path("data/gsm8k_subset.json")
+
+        print("Loading GSM8K …")
+        full_ds = GSM8KDataset(
+            subset_size=dcfg["subset_size"],
+            split="train",
+            seed=dcfg["seed"],
+            dataset_name=dcfg["dataset_name"],
+            dataset_config=dcfg["dataset_config"],
+            cache_path=cache,
+        )
+        train_ds, val_ds = full_ds.train_val_split(dcfg["train_ratio"])
+        print(f"  Train: {len(train_ds.data)}  Val: {len(val_ds.data)}")
+
+        print("Loading model …")
+        verifier = ModelVerifier(config)
+
+        return cls(
+            config=config,
+            verifier=verifier,
+            train_data=train_ds.data,
+            val_data=val_ds.data,
+        )
+
+    # ------------------------------------------------------------------
+    # Main loop
+    # ------------------------------------------------------------------
+
+    def run(self, num_iterations: Optional[int] = None) -> None:
+        ecfg = self.config["experiment"]
+        wcfg = self.config["wandb"]
+        num_iterations = num_iterations or ecfg["num_iterations"]
+
+        # Init W&B
+        run = wandb.init(
+            project=wcfg["project"],
+            entity=wcfg.get("entity"),
+            tags=wcfg.get("tags", []),
+            config=self.config,
+        )
+
+        try:
+            for iteration in range(1, num_iterations + 1):
+                print(f"\n{'='*60}")
+                print(f"  Iteration {iteration}/{num_iterations}")
+                print(f"{'='*60}")
+                metrics = self._run_iteration(iteration)
+                wandb.log(metrics, step=iteration)
+                self._print_metrics(metrics)
+
+                # Checkpoint every N iterations
+                if iteration % ecfg["checkpoint_interval"] == 0:
+                    ckpt_path = Path(ecfg["output_dir"]) / f"iter_{iteration:03d}"
+                    self.verifier.save_checkpoint(ckpt_path)
+        finally:
+            run.finish()
+
+    def _run_iteration(self, iteration: int) -> dict:
+        ecfg = self.config["experiment"]
+        inject_interval = ecfg["hard_negative_injection_interval"]
+        hard_neg_ratio = ecfg["hard_negative_ratio"]
+        confidence_thr = ecfg.get("confidence_threshold", 0.7)
+
+        # ----------------------------------------------------------------
+        # a) Decide which batch to train on this iteration
+        # ----------------------------------------------------------------
+        if iteration % inject_interval == 0 and self.hard_negative_bank:
+            print(f"  Injecting {int(hard_neg_ratio*100)}% hard negatives …")
+            batch = mix_batches(
+                self.train_data,
+                self.hard_negative_bank,
+                hard_neg_ratio=hard_neg_ratio,
+                rng_seed=self.rng.randint(0, 2**31),
+            )
+        else:
+            batch = list(self.train_data)
+            self.rng.shuffle(batch)
+
+        # ----------------------------------------------------------------
+        # b–c) Generate predictions + compute scores
+        # ----------------------------------------------------------------
+        print("  Generating predictions …")
+        prompts = [s["prompt"] for s in batch]
+        references = [s["answer"] for s in batch]
+
+        completions = self.verifier.generate(prompts)
+        self_scores = self.verifier.score(prompts, references)
+
+        # ----------------------------------------------------------------
+        # d) Collect hard negatives for the bank
+        # ----------------------------------------------------------------
+        new_hard_negs = find_hard_negatives(
+            batch, completions, self_scores, confidence_threshold=confidence_thr
+        )
+        self.hard_negative_bank.extend(new_hard_negs)
+        # Cap bank size to avoid unbounded growth
+        if len(self.hard_negative_bank) > 500:
+            self.hard_negative_bank = self.hard_negative_bank[-500:]
+
+        # ----------------------------------------------------------------
+        # e–f) Fine-tune on current batch
+        # ----------------------------------------------------------------
+        print("  Fine-tuning …")
+        loss = self.verifier.finetune(batch)
+
+        # ----------------------------------------------------------------
+        # g) Build metrics dict
+        # ----------------------------------------------------------------
+        metrics = summarise_iteration(
+            iteration=iteration,
+            completions=completions,
+            references=references,
+            self_scores=self_scores,
+            loss=loss,
+            num_hard_negatives=len(new_hard_negs),
+        )
+        return metrics
+
+    # ------------------------------------------------------------------
+    # Helpers
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _print_metrics(m: dict) -> None:
+        print(
+            f"  gap={m['gap']:.4f}  "
+            f"self={m['self_score_mean']:.4f}  "
+            f"ext={m['external_score_mean']:.4f}  "
+            f"loss={m.get('loss', float('nan')):.4f}  "
+            f"hard_negs={m['num_hard_negatives']}"
+        )
