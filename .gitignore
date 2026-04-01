@@ -19,6 +19,9 @@ logs/
 data/.conda*/
 envs/
 
+# Claude Code local settings
+.claude/settings.local.json
+
 # Jupyter
 .ipynb_checkpoints/
 
