@@ -71,11 +71,15 @@ class ModelVerifier:
         mcfg = self.config["model"]
         qcfg = mcfg["quantization"]
 
-        bnb_config = BitsAndBytesConfig(
-            load_in_4bit=qcfg["load_in_4bit"],
-            bnb_4bit_quant_type=qcfg["bnb_4bit_quant_type"],
-            bnb_4bit_compute_dtype=getattr(torch, qcfg["bnb_4bit_compute_dtype"]),
-            bnb_4bit_use_double_quant=qcfg["bnb_4bit_use_double_quant"],
+        bnb_config = (
+            BitsAndBytesConfig(
+                load_in_4bit=True,
+                bnb_4bit_quant_type=qcfg["bnb_4bit_quant_type"],
+                bnb_4bit_compute_dtype=getattr(torch, qcfg["bnb_4bit_compute_dtype"]),
+                bnb_4bit_use_double_quant=qcfg["bnb_4bit_use_double_quant"],
+            )
+            if qcfg["load_in_4bit"]
+            else None
         )
 
         self.tokenizer = AutoTokenizer.from_pretrained(
