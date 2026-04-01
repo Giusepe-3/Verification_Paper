@@ -123,7 +123,7 @@ class GSM8KDataset(Dataset):
         seed: int = 42,
         dataset_name: str = "openai/gsm8k",
         dataset_config: str = "main",
-        cache_path: Optional[str | Path] = None,
+        cache_path: str | Path | None = None,
     ):
         self.subset_size = subset_size
         self.split = split

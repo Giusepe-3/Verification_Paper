@@ -1,7 +1,14 @@
 from .gsm8k_loader import GSM8KDataset, answer_extractor, verify
 from .verifier import ModelVerifier
 from .experiment import VerificationCollapseExperiment
-from .utils import compute_gap, compute_self_score, compute_external_score
+from .utils import (
+    compute_gap,
+    compute_self_score,
+    compute_external_score,
+    find_hard_negatives,
+    mix_batches,
+    summarise_iteration,
+)
 
 __all__ = [
     "GSM8KDataset",
@@ -12,4 +19,7 @@ __all__ = [
     "compute_gap",
     "compute_self_score",
     "compute_external_score",
+    "find_hard_negatives",
+    "mix_batches",
+    "summarise_iteration",
 ]

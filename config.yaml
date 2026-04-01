@@ -1,5 +1,5 @@
 model:
-  name: "Qwen/Qwen3-8B"           # Closest available; swap to Qwen3.5-9B when released
+  name: "Qwen/Qwen3.5-9B"
   quantization:
     load_in_4bit: true
     bnb_4bit_quant_type: "nf4"     # Q4_K_M-equivalent in bitsandbytes
@@ -12,15 +12,15 @@ lora:
   target_modules: "all-linear"
   lora_dropout: 0.05
   bias: "none"
-  use_dora: true                   # DoRA enabled
+  use_dora: false                  # DoRA disabled — too slow with 4-bit NF4; re-enable for final runs if needed
   task_type: "CAUSAL_LM"
 
 training:
   learning_rate: 2.0e-4
   lr_scheduler_type: "cosine"
   warmup_ratio: 0.05
-  per_device_train_batch_size: 4
-  gradient_accumulation_steps: 4
+  per_device_train_batch_size: 1
+  gradient_accumulation_steps: 16
   num_train_epochs: 1
   max_grad_norm: 1.0
   optimizer: "paged_adamw_32bit"
@@ -49,4 +49,4 @@ experiment:
 wandb:
   project: "rsi-verification-collapse"
   entity: null                    # Set to your W&B username if needed
-  tags: ["qwen3", "gsm8k", "qlora", "dora", "verification-collapse"]
+  tags: ["qwen3.5-9b-official", "gsm8k", "qlora", "dora", "verification-collapse"]
