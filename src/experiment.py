@@ -194,10 +194,13 @@ class VerificationCollapseExperiment:
             self.hard_negative_bank = self.hard_negative_bank[-500:]
 
         # ----------------------------------------------------------------
-        # e–f) Fine-tune on current batch
+        # e–f) Fine-tune only on examples the model thinks it solved correctly.
+        #      This is the self-improving loop mechanism: biased training signal
+        #      is what causes verification collapse.
         # ----------------------------------------------------------------
-        print("  Fine-tuning …")
-        loss = self.verifier.finetune(batch)
+        self_correct = [s for s, sc in zip(batch, self_scores) if sc > 0]
+        print(f"  Fine-tuning on {len(self_correct)}/{len(batch)} self-judged-correct examples …")
+        loss = self.verifier.finetune(self_correct) if self_correct else None
 
         # ----------------------------------------------------------------
         # g) Val-set ground-truth evaluation (post-fine-tune)
