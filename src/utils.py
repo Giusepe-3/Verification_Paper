@@ -47,8 +47,11 @@ def compute_external_score(
 
 
 def compute_gap(self_score: float, external_score: float) -> float:
-    """Absolute verification gap: |self_score - external_score|."""
-    return abs(self_score - external_score)
+    """Signed verification gap: self_score - external_score.
+    Positive means the model overestimates its own correctness.
+    The paper's claim is this grows monotonically over iterations.
+    """
+    return self_score - external_score
 
 
 # ---------------------------------------------------------------------------
@@ -144,19 +147,29 @@ def summarise_iteration(
     self_scores: list[float],
     loss: Optional[float],
     num_hard_negatives: int,
+    val_completions: Optional[list[str]] = None,
+    val_references: Optional[list[str]] = None,
 ) -> dict:
-    """Aggregate all per-iteration metrics into one loggable dict."""
+    """Aggregate all per-iteration metrics into one loggable dict.
+
+    self_score_mean and gt_score_train are measured on the training batch
+    (same generation, pre-fine-tune) so the gap comparison is direct.
+    gt_score_val is measured on the held-out val set after fine-tuning and
+    is the cleanest signal for generalisation.
+    """
     self_score_mean = compute_self_score(self_scores)
-    external_score_mean = compute_external_score(completions, references)
-    gap = compute_gap(self_score_mean, external_score_mean)
+    gt_score_train = compute_external_score(completions, references)
+    gap = compute_gap(self_score_mean, gt_score_train)
 
     metrics = {
         "iteration": iteration,
         "self_score_mean": self_score_mean,
-        "external_score_mean": external_score_mean,
+        "gt_score_train": gt_score_train,
         "gap": gap,
         "num_hard_negatives": num_hard_negatives,
     }
+    if val_completions is not None and val_references is not None:
+        metrics["gt_score_val"] = compute_external_score(val_completions, val_references)
     if loss is not None:
         metrics["loss"] = loss
 

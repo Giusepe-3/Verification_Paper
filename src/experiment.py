@@ -200,7 +200,16 @@ class VerificationCollapseExperiment:
         loss = self.verifier.finetune(batch)
 
         # ----------------------------------------------------------------
-        # g) Build metrics dict
+        # g) Val-set ground-truth evaluation (post-fine-tune)
+        #    No self-score here — just ground truth on held-out data.
+        # ----------------------------------------------------------------
+        print("  Evaluating on val set …")
+        val_prompts = [s["prompt"] for s in self.val_data]
+        val_references = [s["answer"] for s in self.val_data]
+        val_completions = self.verifier.generate(val_prompts)
+
+        # ----------------------------------------------------------------
+        # h) Build metrics dict
         # ----------------------------------------------------------------
         metrics = summarise_iteration(
             iteration=iteration,
@@ -209,6 +218,8 @@ class VerificationCollapseExperiment:
             self_scores=self_scores,
             loss=loss,
             num_hard_negatives=len(new_hard_negs),
+            val_completions=val_completions,
+            val_references=val_references,
         )
         return metrics
 
@@ -221,7 +232,8 @@ class VerificationCollapseExperiment:
         print(
             f"  gap={m['gap']:.4f}  "
             f"self={m['self_score_mean']:.4f}  "
-            f"ext={m['external_score_mean']:.4f}  "
+            f"gt_train={m['gt_score_train']:.4f}  "
+            f"gt_val={m.get('gt_score_val', float('nan')):.4f}  "
             f"loss={m.get('loss', float('nan')):.4f}  "
             f"hard_negs={m['num_hard_negatives']}"
         )
