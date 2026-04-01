@@ -10,6 +10,15 @@ data/*.json
 models/iter_*/
 logs/
 
+# Large binary installers / wheels
+*.whl
+*.sh
+
+# Conda environments (local envs anywhere in the repo)
+.conda/
+data/.conda*/
+envs/
+
 # Jupyter
 .ipynb_checkpoints/
 

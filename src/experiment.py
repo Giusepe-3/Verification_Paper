@@ -12,12 +12,16 @@ Usage
 
 from __future__ import annotations
 
+import csv
 import random
 from pathlib import Path
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 import wandb
 import yaml
+
+if TYPE_CHECKING:
+    import wandb.sdk.wandb_run
 
 from .gsm8k_loader import GSM8KDataset
 from .verifier import ModelVerifier
@@ -66,7 +70,7 @@ class VerificationCollapseExperiment:
     def from_config(
         cls,
         config_path: str | Path = "config.yaml",
-        wandb_run: Optional[wandb.sdk.wandb_run.Run] = None,  # type: ignore[name-defined]
+        wandb_run: Optional["wandb.sdk.wandb_run.Run"] = None,
     ) -> "VerificationCollapseExperiment":
         """Load config, dataset, and model; return a ready experiment."""
         config_path = Path(config_path)
@@ -107,10 +111,17 @@ class VerificationCollapseExperiment:
         wcfg = self.config["wandb"]
         num_iterations = num_iterations or ecfg["num_iterations"]
 
+        # Prepare CSV log
+        log_dir = Path(self.config["experiment"].get("log_dir", "logs"))
+        log_dir.mkdir(parents=True, exist_ok=True)
+        csv_path = log_dir / "metrics.csv"
+        csv_file = open(csv_path, "w", newline="", encoding="utf-8")
+        csv_writer: Optional[csv.DictWriter] = None
+
         # Init W&B
         run = wandb.init(
             project=wcfg["project"],
-            entity=wcfg.get("entity"),
+            entity=wcfg.get("entity") or None,
             tags=wcfg.get("tags", []),
             config=self.config,
         )
@@ -124,12 +135,21 @@ class VerificationCollapseExperiment:
                 wandb.log(metrics, step=iteration)
                 self._print_metrics(metrics)
 
+                # Write CSV row (initialise writer on first iteration)
+                if csv_writer is None:
+                    csv_writer = csv.DictWriter(csv_file, fieldnames=list(metrics.keys()))
+                    csv_writer.writeheader()
+                csv_writer.writerow(metrics)
+                csv_file.flush()
+
                 # Checkpoint every N iterations
                 if iteration % ecfg["checkpoint_interval"] == 0:
                     ckpt_path = Path(ecfg["output_dir"]) / f"iter_{iteration:03d}"
                     self.verifier.save_checkpoint(ckpt_path)
         finally:
+            csv_file.close()
             run.finish()
+            print(f"Metrics saved → {csv_path}")
 
     def _run_iteration(self, iteration: int) -> dict:
         ecfg = self.config["experiment"]
@@ -160,7 +180,7 @@ class VerificationCollapseExperiment:
         references = [s["answer"] for s in batch]
 
         completions = self.verifier.generate(prompts)
-        self_scores = self.verifier.score(prompts, references)
+        self_scores = self.verifier.score(prompts, completions)
 
         # ----------------------------------------------------------------
         # d) Collect hard negatives for the bank

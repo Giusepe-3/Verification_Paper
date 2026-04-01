@@ -6,26 +6,24 @@ ModelVerifier: load Qwen3.x in 4-bit NF4, score predictions, QLoRA fine-tune.
 Public API
 ----------
 ModelVerifier(config)
-    .generate(prompts)    -> list[str]          raw completions
-    .score(prompts, refs) -> list[float]        per-sample self-scores (0/1 for now,
-                                                extendable to log-prob confidence)
-    .finetune(batch)      -> float              mean training loss for the batch
+    .generate(prompts)              -> list[str]    raw completions
+    .score(prompts, completions)    -> list[float]  per-sample self-scores (0/1):
+                                                    the model judges its own answer
+                                                    without access to the reference
+    .finetune(batch)                -> float        mean training loss for the batch
     .save_checkpoint(path)
     .load_checkpoint(path)
 """
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
-from typing import Any
 
 import torch
 from peft import (
     LoraConfig,
     TaskType,
     get_peft_model,
-    prepare_model_for_kbit_training,
 )
 from transformers import (
     AutoModelForCausalLM,
@@ -35,7 +33,12 @@ from transformers import (
 )
 from torch.optim import AdamW
 
-from .gsm8k_loader import answer_extractor, verify
+_SELF_SCORE_TEMPLATE = (
+    "Below is a math problem and your attempted solution.\n\n"
+    "Problem: {problem}\n\n"
+    "Your solution: {completion}\n\n"
+    "Is your final answer correct? Reply with only 'yes' or 'no'."
+)
 
 
 class ModelVerifier:
@@ -82,13 +85,14 @@ class ModelVerifier:
         )
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
+            self.tokenizer.pad_token_id = self.tokenizer.eos_token_id
 
         self.model = AutoModelForCausalLM.from_pretrained(
             mcfg["name"],
             quantization_config=bnb_config,
-            device_map="auto",
+            device_map={"": 0},
             trust_remote_code=True,
-            torch_dtype=torch.bfloat16,
+            dtype=torch.bfloat16,
         )
         self.model.config.use_cache = False  # required for gradient checkpointing
 
@@ -96,10 +100,10 @@ class ModelVerifier:
         lcfg = self.config["lora"]
         tcfg = self.config["training"]
 
-        self.model = prepare_model_for_kbit_training(
-            self.model,
-            use_gradient_checkpointing=tcfg["gradient_checkpointing"],
-        )
+        if tcfg["gradient_checkpointing"]:
+            self.model.gradient_checkpointing_enable(
+                gradient_checkpointing_kwargs={"use_reentrant": False}
+            )
 
         lora_config = LoraConfig(
             r=lcfg["r"],
@@ -108,7 +112,7 @@ class ModelVerifier:
             lora_dropout=lcfg["lora_dropout"],
             bias=lcfg["bias"],
             use_dora=lcfg.get("use_dora", False),
-            task_type=TaskType.CAUSAL_LM,
+            task_type=TaskType[lcfg["task_type"]],
         )
         self.model = get_peft_model(self.model, lora_config)
         self.model.print_trainable_parameters()
@@ -148,8 +152,18 @@ class ModelVerifier:
 
         for i in range(0, len(prompts), batch_size):
             batch_prompts = prompts[i : i + batch_size]
+            # Apply chat template so the model knows the turn boundary and
+            # generates an EOS at the right place instead of continuing.
+            formatted = [
+                self.tokenizer.apply_chat_template(
+                    [{"role": "user", "content": p}],
+                    tokenize=False,
+                    add_generation_prompt=True,
+                )
+                for p in batch_prompts
+            ]
             enc = self.tokenizer(
-                batch_prompts,
+                formatted,
                 return_tensors="pt",
                 padding=True,
                 truncation=True,
@@ -163,7 +177,7 @@ class ModelVerifier:
                 pad_token_id=self.tokenizer.pad_token_id,
             )
             # Decode only newly generated tokens
-            for j, ids in enumerate(out):
+            for _, ids in enumerate(out):
                 input_len = enc["input_ids"].shape[1]
                 new_ids = ids[input_len:]
                 completions.append(
@@ -175,22 +189,24 @@ class ModelVerifier:
     def score(
         self,
         prompts: list[str],
-        references: list[str],
-        max_new_tokens: int = 256,
+        completions: list[str],
         batch_size: int = 4,
     ) -> list[float]:
         """
-        Return a per-sample correctness score in [0, 1].
+        Return a per-sample self-correctness score in [0, 1].
 
-        Currently binary (0 or 1) based on answer extraction + string match.
-        Can be upgraded to token-log-prob confidence without changing the API.
+        The model is prompted to judge its own answer (yes/no) without access
+        to the ground truth reference. This is the true self-score; compare it
+        against compute_external_score() (which uses the reference) to measure
+        the verification gap.
         """
-        completions = self.generate(prompts, max_new_tokens=max_new_tokens, batch_size=batch_size)
-        scores = []
-        for completion, ref in zip(completions, references):
-            extracted = answer_extractor(completion)
-            scores.append(float(verify(extracted, ref)))
-        return scores
+        judge_prompts = [
+            _SELF_SCORE_TEMPLATE.format(problem=p, completion=c)
+            for p, c in zip(prompts, completions)
+        ]
+        # Short generation: we only need "yes" or "no"
+        verdicts = self.generate(judge_prompts, max_new_tokens=5, batch_size=batch_size)
+        return [float("yes" in v.lower()) for v in verdicts]
 
     # ------------------------------------------------------------------
     # Fine-tuning
@@ -199,7 +215,6 @@ class ModelVerifier:
     def finetune(
         self,
         samples: list[dict],
-        num_warmup_steps: int = 0,
     ) -> float:
         """
         Fine-tune on a mixed batch for one epoch.
@@ -209,8 +224,6 @@ class ModelVerifier:
         samples : list[dict]
             Each dict must have keys "prompt" and "solution"
             (the full chain-of-thought target text).
-        num_warmup_steps : int
-            Warmup steps for the cosine scheduler for this micro-epoch.
 
         Returns
         -------
@@ -223,6 +236,8 @@ class ModelVerifier:
         # Build scheduler for this call
         grad_steps = tcfg["gradient_accumulation_steps"]
         total_steps = max(1, len(samples) // (tcfg["per_device_train_batch_size"] * grad_steps))
+        warmup_ratio = tcfg.get("warmup_ratio", 0.05)
+        num_warmup_steps = int(total_steps * warmup_ratio)
         self.scheduler = get_cosine_schedule_with_warmup(
             self.optimizer,
             num_warmup_steps=num_warmup_steps,
