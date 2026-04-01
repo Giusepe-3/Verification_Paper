@@ -163,6 +163,8 @@ class ModelVerifier:
                     [{"role": "user", "content": p}],
                     tokenize=False,
                     add_generation_prompt=True,
+                    enable_thinking=False,  # Qwen3: disable <think> blocks so the
+                                            # model outputs answers within token budget
                 )
                 for p in batch_prompts
             ]
