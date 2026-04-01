@@ -1,10 +1,10 @@
 model:
-  name: "Qwen/Qwen3.5-9B"
+  name: "Qwen/Qwen2.5-0.5B-Instruct"  # tiny model for fast signal check; swap back to Qwen3.5-9B for real runs
   quantization:
-    load_in_4bit: true
+    load_in_4bit: false   # not needed at 0.5B — fits in VRAM unquantized
     bnb_4bit_quant_type: "nf4"
     bnb_4bit_compute_dtype: "bfloat16"
-    bnb_4bit_use_double_quant: true
+    bnb_4bit_use_double_quant: false
 
 lora:
   r: 16
