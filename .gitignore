@@ -7,7 +7,7 @@ venv/
 
 # Data & models (large binary files)
 data/*.json
-models/iter_*/
+models/**/iter_*/
 logs/
 
 # Large binary installers / wheels
