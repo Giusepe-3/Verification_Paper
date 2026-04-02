@@ -8,37 +8,62 @@ This is the codebase for a NeurIPS 2026 submission.
 
 **Paper in two figures:**
 
-1. Two curves (self-score vs. ground truth) diverging over iterations
-2. Same setup with adversarial injection — gap stays bounded
+1. Two curves (self-score vs. ground truth) diverging over iterations — baseline run
+2. Same setup with adversarial injection — gap stays bounded — injection run
 
 **Deadline:** Abstract May 5, paper May 7, 2026 (Europe/Copenhagen).
 
 ---
 
-## Repo Structure
+## Current Status (as of April 2, 2026)
+
+**Sanity check: PASSED.** 3-iteration run (40 train / 10 val, Qwen3.5-9B, 4-bit) confirmed:
+- Gap is positive: self-score overestimates ground truth (as predicted)
+- W&B + CSV logging confirmed working
+- End-to-end loop runs: generate → score → filter → fine-tune → val eval → log
+
+**Next step:** Run baseline and injection configs (each ~10h, back to back).
+
+```bash
+# Night 1 — baseline (no injection)
+nohup python run_experiment.py --config experiments/configs/baseline.yaml > logs/baseline_run.log 2>&1 &
+
+# Night 2 — injection
+nohup python run_experiment.py --config experiments/configs/injection.yaml > logs/injection_run.log 2>&1 &
+```
+
+Monitor with: `tail -f logs/baseline_run.log`
+
+---
+
+## Repo Structure (actual files)
 
 ```
 verification-collapse/
-├── CLAUDE.md                  # This file
+├── CLAUDE.md
 ├── README.md
-├── notes/
-│   ├── lab_notebook.md        # Experimental observations — update after every run
-│   └── rsi-thesis-seed.md     # Living research direction document
+├── config.yaml                          # Full 20-iter / 500-sample config (reference)
+├── run_experiment.py                    # Entry point: --config and --iterations flags
 ├── src/
-│   ├── loop.py                # Main self-improvement loop
-│   ├── sampler.py             # Task sampling (GSM8K or code benchmark)
-│   ├── generator.py           # Model generation
-│   ├── verifier.py            # Dual scorer: self-score + ground truth score
-│   └── inject.py              # Adversarial injection logic
+│   ├── experiment.py                    # Main loop (VerificationCollapseExperiment)
+│   ├── verifier.py                      # ModelVerifier: generate, score, finetune
+│   ├── gsm8k_loader.py                  # Dataset loading, answer_extractor, verify
+│   └── utils.py                         # compute_gap, summarise_iteration, hard-neg mining
 ├── experiments/
-│   ├── run_baseline.py        # Baseline: loop with no injection
-│   ├── run_injection.py       # Intervention: periodic adversarial injection
-│   └── configs/               # YAML configs per experiment
-├── results/
-│   ├── figures/               # Generated plots (not committed — regenerate from data)
-│   └── logs/                  # Raw CSV or W&B exports
+│   └── configs/
+│       ├── sanity_check.yaml            # 50 samples, 3 iters — quick smoke test
+│       ├── baseline.yaml                # 250 samples, 10 iters, injection DISABLED
+│       └── injection.yaml              # 250 samples, 10 iters, injection every 3 iters
+├── data/
+│   └── gsm8k_subset.json               # Cached after first download (gitignored)
+├── logs/                                # CSV outputs per run (gitignored)
+├── models/                              # Checkpoints (gitignored)
+├── notebooks/
+│   └── sanity_check.ipynb
+├── notes/
+│   └── lab_notebook.md                  # Update after every run
 └── paper/
-    └── draft.tex              # NeurIPS submission
+    └── draft.tex
 ```
 
 ---
@@ -46,92 +71,91 @@ verification-collapse/
 ## The Experiment
 
 **Domain:** GSM8K math subset (ground truth = correct final number, one-line check)
-**Model:** Small open-weights model (Qwen3.5-9B or similar) via HuggingFace
+**Model:** Qwen3.5-9B via HuggingFace, 4-bit NF4 quantization + QLoRA (r=16)
 **Loop:**
 
-1. Sample N tasks
-2. Model generates solutions
-3. Dual score every solution: self-assigned score + external ground truth score
-4. Fine-tune on problems the model "thinks" it solved correctly
-5. Repeat for 10–20 iterations
-6. Log the gap at every checkpoint
+1. Sample N tasks from GSM8K train split
+2. Model generates solutions (chat template, thinking mode OFF)
+3. Dual score: self-score (model judges its own answer) + GT score (extract number, compare)
+4. Fine-tune on problems the model **thinks** it solved correctly (self_score > 0)
+5. Evaluate GT score on held-out val set
+6. Repeat for 10–20 iterations
 
-**Key measurements at every iteration:**
+**Key measurements per iteration:**
 
-- `self_score`: fraction of problems the model judges itself correct on
-- `gt_score`: fraction of problems actually correct against held-out ground truth
-- `gap`: `self_score - gt_score`
-- `iteration`: loop step
+| Field | Description |
+|---|---|
+| `self_score_mean` | Fraction the model judges itself correct (train batch) |
+| `gt_score_train` | Fraction actually correct on same train batch |
+| `gt_score_val` | Fraction actually correct on held-out val set (post fine-tune) |
+| `gap` | `self_score_mean - gt_score_train` — signed, should grow monotonically |
+| `loss` | Fine-tune cross-entropy |
+| `num_hard_negatives` | Hard negatives found this iteration |
 
 **The adversarial injection variant:**
-Every N iterations, inject K problems the model demonstrably fails on (drawn from an external source). Measure whether the gap closes or stays bounded.
+Every 3 iterations, inject 50% hard negatives (high-confidence-wrong examples from previous iterations) into the fine-tuning batch. Hypothesis: forces self-verifier to recalibrate against reality.
 
 ---
 
-## Instrumentation Rules
+## Known Model Quirks
 
-- Every experiment run logs to W&B with a unique run name
-- Every run also writes a CSV to `results/logs/` as a backup
-- Config (model, n_tasks, n_iterations, injection_freq, injection_k) is always logged alongside results
-- After any run, update `notes/lab_notebook.md` with: what you ran, what you saw, what it means
+**Qwen3 thinking mode:** Qwen3 generates `<think>...</think>` blocks by default. With
+`max_new_tokens=256`, the model exhausts its budget mid-thought and never outputs an answer,
+causing gt_score ≈ 0 and self_score = 0. Fixed by passing `enable_thinking=False` to
+`apply_chat_template` in `verifier.py`.
+
+**DoRA with 4-bit NF4 is extremely slow:** DoRA decomposes weights at every forward pass.
+With NF4 quantization, this caused generation to take 20+ minutes per sample. Fixed by
+setting `use_dora: false` in all configs.
+
+**`BitsAndBytesConfig` guard:** When `load_in_4bit: false` (e.g. for tiny models),
+`verifier.py` now passes `quantization_config=None` instead of constructing a BnB config.
+
+---
+
+## Instrumentation
+
+- Every run logs to W&B (`rsi-verification-collapse` project) and writes CSV to `logs/<run_name>/metrics.csv`
+- Config is always logged alongside results
+- After any run, update `notes/lab_notebook.md`
 
 ---
 
 ## Code Conventions
 
-- Python 3.10+
-- PyTorch for any training steps
-- HuggingFace `transformers` and `datasets` for model and data loading
-- `wandb` for experiment tracking
-- Keep each component (sampler, generator, verifier, injector) in its own file — they need to be swappable
-- No notebooks in the main codebase — prototype in notebooks, commit clean scripts
-- Every script takes a config path as argument — no hardcoded hyperparameters
-- `functional_call` pattern from MAML work applies here: if you need to run the model with modified parameters, use it
+- Python 3.10+, PyTorch, HuggingFace `transformers` + `datasets`, `wandb`, `peft`
+- Components are separated: loader / verifier / utils / experiment — keep them swappable
+- No notebooks in main codebase — prototype in `notebooks/`, commit clean scripts
+- Every script takes `--config` path — no hardcoded hyperparameters
 
 ---
 
 ## What Not To Do
 
-- Do not replicate AZR or SRLM in full — you only need the measurement infrastructure
-- Do not use GPT-4 or closed APIs for the self-verifier — the model must judge its own outputs
-- Do not commit W&B run artifacts or model checkpoints — log run IDs instead
-- Do not start writing before the 3-iteration sanity check confirms degradation exists
+- Do not use GPT-4 or closed APIs for the self-verifier — model must judge its own outputs
+- Do not commit W&B artifacts or model checkpoints — log run IDs instead
+- Do not enable DoRA for production runs — too slow with 4-bit
+- Do not use `do_sample=True` — greedy decoding for deterministic scoring
 
 ---
 
-## Key Concepts (for Claude Code context)
-
-**Verification collapse:** The phenomenon where a self-improving model's internal verifier co-adapts to its own outputs, causing self-assigned scores to progressively overestimate actual performance relative to ground truth.
-
-**Self-score:** What the model thinks it scored. Obtained by prompting the model to judge its own generated answer.
-
-**Ground truth score:** What the model actually scored. Obtained by comparing the model's final answer to the held-out correct answer.
-
-**Gap:** `self_score - gt_score`. The core measurement. The paper's claim is that this grows monotonically over iterations.
-
-**Adversarial injection:** Periodic insertion of tasks drawn from an external source that the model demonstrably fails on. The intervention hypothesis: this forces the self-verifier to recalibrate against reality, slowing or resetting gap growth.
-
-**Iteration:** One full cycle of: sample tasks → generate solutions → dual score → fine-tune on self-judged correct examples.
-
----
-
-## Related Work (for context when editing paper/)
+## Related Work
 
 - **SRLM (Yuan et al. 2024):** Qualitative observation of judge-generator collapse. We quantify it.
-- **STaR (Zelikman et al. 2022):** Ground-truth-anchored baseline that doesn't have the problem — useful contrast.
+- **STaR (Zelikman et al. 2022):** Ground-truth-anchored baseline — no collapse by design. Useful contrast.
 - **AZR (NeurIPS 2025 spotlight):** Direct foil. Assumes self-verification stays calibrated. We test that assumption.
-- **Gao et al. 2023 (RM overoptimization):** Closest prior work — RM scores diverge from ground truth under optimization pressure. We show the same emerges endogenously in self-supervised loops.
+- **Gao et al. 2023 (RM overoptimization):** RM scores diverge from GT under optimization pressure. We show same emerges endogenously in self-supervised loops.
 - **Mind the Gap (ICLR 2025):** Measures generation-verification gap as function of pretraining compute (static). We measure dynamic drift during self-improvement.
 
 ---
 
 ## Phase Gates
 
-| Gate                      | Deadline    | Criteria                                   |
-| ------------------------- | ----------- | ------------------------------------------ |
-| Research question locked  | ✅ March 27 | One falsifiable sentence — done            |
-| Sanity check              | March 28    | 3-iteration run shows degradation signal   |
-| Core experiments complete | April 25    | Degradation curve + injection curve logged |
-| Full draft                | May 3       | All sections written                       |
-| Abstract registered       | May 5       | Submitted to NeurIPS portal                |
-| Paper submitted           | May 7       | No exceptions                              |
+| Gate                      | Deadline    | Status |
+| ------------------------- | ----------- | ------ |
+| Research question locked  | March 27    | ✅ Done |
+| Sanity check              | March 28    | ✅ Done (April 2 — late but passed) |
+| Core experiments complete | April 25    | ⏳ Baseline + injection runs needed |
+| Full draft                | May 3       | ⏳ |
+| Abstract registered       | May 5       | ⏳ |
+| Paper submitted           | May 7       | ⏳ |

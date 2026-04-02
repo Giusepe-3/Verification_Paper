@@ -1,0 +1,52 @@
+model:
+  name: "Qwen/Qwen3.5-9B"
+  quantization:
+    load_in_4bit: true
+    bnb_4bit_quant_type: "nf4"
+    bnb_4bit_compute_dtype: "bfloat16"
+    bnb_4bit_use_double_quant: true
+
+lora:
+  r: 16
+  lora_alpha: 32
+  target_modules: "all-linear"
+  lora_dropout: 0.05
+  bias: "none"
+  use_dora: false
+  task_type: "CAUSAL_LM"
+
+training:
+  learning_rate: 2.0e-4
+  lr_scheduler_type: "cosine"
+  warmup_ratio: 0.05
+  per_device_train_batch_size: 1
+  gradient_accumulation_steps: 16
+  num_train_epochs: 1
+  max_grad_norm: 1.0
+  optimizer: "paged_adamw_32bit"
+  gradient_checkpointing: true
+  bf16: true
+  logging_steps: 5
+  save_strategy: "no"
+
+data:
+  dataset_name: "openai/gsm8k"
+  dataset_config: "main"
+  subset_size: 250        # same as baseline for direct comparison
+  train_ratio: 0.8
+  max_seq_length: 512
+  seed: 42
+
+experiment:
+  num_iterations: 10
+  hard_negative_injection_interval: 3   # inject every 3 iterations (iters 3, 6, 9)
+  hard_negative_ratio: 0.5
+  confidence_threshold: 0.7
+  checkpoint_interval: 5
+  output_dir: "models/injection"
+  log_dir: "logs/injection"
+
+wandb:
+  project: "rsi-verification-collapse"
+  entity: null
+  tags: ["qwen3.5-9b-official", "gsm8k", "qlora", "injection", "adversarial"]
