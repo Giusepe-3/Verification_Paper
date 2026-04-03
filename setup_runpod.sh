@@ -10,6 +10,7 @@ set -e
 # Disable PyTorch inductor JIT compilation — bitsandbytes 0.43-0.44 uses
 # pre-built CUDA kernels and doesn't need it; inductor on a fresh pod would
 # spend 30+ min compiling before the first token is generated.
+export TORCHDYNAMO_DISABLE=1
 export TORCHINDUCTOR_DISABLE=1
 
 echo "=== Installing dependencies ==="
