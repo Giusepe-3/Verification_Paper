@@ -1,7 +1,7 @@
 model:
   name: "Qwen/Qwen3.5-9B"
   quantization:
-    load_in_4bit: true
+    load_in_4bit: false
     bnb_4bit_quant_type: "nf4"
     bnb_4bit_compute_dtype: "bfloat16"
     bnb_4bit_use_double_quant: true
@@ -23,7 +23,7 @@ training:
   gradient_accumulation_steps: 4   # effective batch = 4×4 = 16 (same as before)
   num_train_epochs: 1
   max_grad_norm: 1.0
-  optimizer: "adamw_8bit"
+  optimizer: "adamw"
   gradient_checkpointing: false    # RTX 4090 has headroom; skip recomputation
   bf16: true
   logging_steps: 5
