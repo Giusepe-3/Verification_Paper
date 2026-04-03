@@ -1,0 +1,54 @@
+model:
+  name: "Qwen/Qwen3.5-9B"
+  quantization:
+    load_in_4bit: false
+    bnb_4bit_quant_type: "nf4"
+    bnb_4bit_compute_dtype: "bfloat16"
+    bnb_4bit_use_double_quant: true
+
+lora:
+  r: 8                    # smaller rank — faster training, enough for signal check
+  lora_alpha: 16
+  target_modules: "all-linear"
+  lora_dropout: 0.05
+  bias: "none"
+  use_dora: false
+  task_type: "CAUSAL_LM"
+
+training:
+  learning_rate: 2.0e-4
+  lr_scheduler_type: "cosine"
+  warmup_ratio: 0.05
+  per_device_train_batch_size: 2
+  gradient_accumulation_steps: 4   # effective batch = 8
+  num_train_epochs: 1
+  max_grad_norm: 1.0
+  optimizer: "adamw"
+  gradient_checkpointing: false
+  bf16: true
+  logging_steps: 5
+  save_strategy: "no"
+  gen_batch_size: 8
+
+data:
+  dataset_name: "openai/gsm8k"
+  dataset_config: "main"
+  subset_size: 80         # 64 train / 16 val
+  train_ratio: 0.8
+  max_seq_length: 256
+  max_new_tokens: 200
+  seed: 42
+
+experiment:
+  num_iterations: 8
+  hard_negative_injection_interval: 9999  # baseline — no injection
+  hard_negative_ratio: 0.0
+  confidence_threshold: 0.7
+  checkpoint_interval: 9999   # no checkpoints — save time
+  output_dir: "models/quick_signal"
+  log_dir: "logs/quick_signal"
+
+wandb:
+  project: "rsi-verification-collapse"
+  entity: null
+  tags: ["qwen3.5-9b", "gsm8k", "quick-signal", "bfloat16", "no-quant"]
