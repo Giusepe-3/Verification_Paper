@@ -60,6 +60,10 @@ class ModelVerifier:
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
         self.gen_batch_size = config.get("training", {}).get("gen_batch_size", 4)
 
+        # Enable TF32 for faster matmul on Ampere/Ada (RTX 30xx/40xx)
+        torch.backends.cuda.matmul.allow_tf32 = True
+        torch.backends.cudnn.allow_tf32 = True
+
         self._load_model()
         self._attach_lora()
         self._build_optimizer()
@@ -97,7 +101,8 @@ class ModelVerifier:
             quantization_config=bnb_config,
             device_map={"": 0},
             trust_remote_code=True,
-            dtype=torch.bfloat16,
+            torch_dtype=torch.bfloat16,
+            attn_implementation="flash_attention_2",
         )
         self.model.config.use_cache = False  # required for gradient checkpointing
 
