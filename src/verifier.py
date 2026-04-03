@@ -185,6 +185,7 @@ class ModelVerifier:
                 max_new_tokens=max_new_tokens,
                 do_sample=False,             # greedy — deterministic scoring
                 pad_token_id=self.tokenizer.pad_token_id,
+                use_cache=True,
             )
             # Decode only newly generated tokens
             for _, ids in enumerate(out):
