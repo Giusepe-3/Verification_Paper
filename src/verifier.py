@@ -271,8 +271,23 @@ class ModelVerifier:
         for step, i in enumerate(range(0, len(samples), batch_size)):
             mini = samples[i : i + batch_size]
 
-            # Concatenate prompt + solution as target
-            full_texts = [s["prompt"] + " " + s["solution"] for s in mini]
+            # Use the same chat-template format as generation so the LoRA
+            # adapters see consistent inputs during both train and inference.
+            # Compute loss only on solution tokens (mask prompt from labels).
+            full_texts = []
+            prompt_lengths = []
+            for s in mini:
+                prompt_chat = self.tokenizer.apply_chat_template(
+                    [{"role": "user", "content": s["prompt"]}],
+                    tokenize=False,
+                    add_generation_prompt=True,
+                )
+                full_texts.append(prompt_chat + s["solution"])
+                prompt_ids = self.tokenizer(
+                    prompt_chat, add_special_tokens=False
+                )["input_ids"]
+                prompt_lengths.append(len(prompt_ids))
+
             enc = self.tokenizer(
                 full_texts,
                 return_tensors="pt",
@@ -282,8 +297,16 @@ class ModelVerifier:
             ).to(self.device)
 
             labels = enc["input_ids"].clone()
-            # Mask padding tokens in loss
+            # Mask padding tokens
             labels[labels == self.tokenizer.pad_token_id] = -100
+            # Mask prompt tokens — loss only on solution tokens
+            for idx, prompt_len in enumerate(prompt_lengths):
+                pad_len = int(
+                    (enc["input_ids"][idx] == self.tokenizer.pad_token_id)
+                    .sum()
+                    .item()
+                )
+                labels[idx, : pad_len + prompt_len] = -100
 
             outputs = self.model(**enc, labels=labels)
             loss = outputs.loss / grad_steps
