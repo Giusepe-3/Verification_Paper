@@ -102,6 +102,7 @@ class ModelVerifier:
             device_map={"": 0},
             trust_remote_code=True,
             dtype=torch.bfloat16,
+            attn_implementation="flash_attention_2",
         )
         self.model.config.use_cache = False  # required for gradient checkpointing
 
@@ -174,8 +175,6 @@ class ModelVerifier:
                     [{"role": "user", "content": p}],
                     tokenize=False,
                     add_generation_prompt=True,
-                    enable_thinking=False,  # Qwen3: disable <think> blocks so the
-                                            # model outputs answers within token budget
                 )
                 for p in batch_prompts
             ]
