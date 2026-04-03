@@ -12,6 +12,8 @@ set -e
 # spend 30+ min compiling before the first token is generated.
 export TORCHDYNAMO_DISABLE=1
 export TORCHINDUCTOR_DISABLE=1
+export TRITON_CACHE_DIR=/tmp/triton_cache
+export BITSANDBYTES_NOWELCOME=1
 
 echo "=== Installing dependencies ==="
 pip install -r requirements.txt
