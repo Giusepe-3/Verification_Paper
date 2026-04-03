@@ -40,7 +40,7 @@ data:
   seed: 42
 
 experiment:
-  num_iterations: 10
+  num_iterations: 20
   hard_negative_injection_interval: 9999  # effectively disabled — pure baseline
   hard_negative_ratio: 0.0
   confidence_threshold: 0.7

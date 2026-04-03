@@ -11,6 +11,7 @@ export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
 echo "=== Installing dependencies ==="
 pip install -r requirements.txt
+pip install flash-attn --no-build-isolation --prefer-binary
 
 echo "=== Authenticating ==="
 wandb login "$WANDB_API_KEY"
