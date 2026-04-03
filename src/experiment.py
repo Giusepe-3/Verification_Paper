@@ -179,7 +179,8 @@ class VerificationCollapseExperiment:
         prompts = [s["prompt"] for s in batch]
         references = [s["answer"] for s in batch]
 
-        completions = self.verifier.generate(prompts)
+        max_new_tokens = self.config["data"].get("max_new_tokens", 256)
+        completions = self.verifier.generate(prompts, max_new_tokens=max_new_tokens)
         self_scores = self.verifier.score(prompts, completions)
 
         # ----------------------------------------------------------------
@@ -209,7 +210,7 @@ class VerificationCollapseExperiment:
         print("  Evaluating on val set …")
         val_prompts = [s["prompt"] for s in self.val_data]
         val_references = [s["answer"] for s in self.val_data]
-        val_completions = self.verifier.generate(val_prompts)
+        val_completions = self.verifier.generate(val_prompts, max_new_tokens=max_new_tokens)
 
         # ----------------------------------------------------------------
         # h) Build metrics dict
