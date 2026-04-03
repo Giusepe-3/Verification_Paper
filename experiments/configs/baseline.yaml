@@ -36,6 +36,7 @@ data:
   subset_size: 250        # 200 train / 50 val — targets ~10h on RTX 3070 Ti Laptop
   train_ratio: 0.8
   max_seq_length: 512
+  max_new_tokens: 200
   seed: 42
 
 experiment:

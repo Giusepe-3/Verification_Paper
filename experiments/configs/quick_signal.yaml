@@ -28,7 +28,7 @@ training:
   bf16: true
   logging_steps: 5
   save_strategy: "no"
-  gen_batch_size: 8
+  gen_batch_size: 16
 
 data:
   dataset_name: "openai/gsm8k"
