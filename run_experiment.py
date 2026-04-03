@@ -12,10 +12,15 @@ Usage
 """
 
 import argparse
+import sys
+
 from src.experiment import VerificationCollapseExperiment
 
 
 def main() -> None:
+    # Force line-buffered stdout so logs appear immediately when redirected to a file
+    sys.stdout.reconfigure(line_buffering=True)
+
     parser = argparse.ArgumentParser(description="Run the verification-collapse experiment.")
     parser.add_argument(
         "--config", default="config.yaml", help="Path to YAML config (default: config.yaml)"

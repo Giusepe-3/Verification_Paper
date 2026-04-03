@@ -58,6 +58,7 @@ class ModelVerifier:
     def __init__(self, config: dict, device: str | None = None):
         self.config = config
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
+        self.gen_batch_size = config.get("training", {}).get("gen_batch_size", 4)
 
         self._load_model()
         self._attach_lora()
@@ -123,19 +124,21 @@ class ModelVerifier:
 
     def _build_optimizer(self) -> None:
         tcfg = self.config["training"]
-        # PagedAdamW is exposed through bitsandbytes
+        opt_name = tcfg.get("optimizer", "adamw_8bit")
+        lr = tcfg["learning_rate"]
+
         try:
-            from bitsandbytes.optim import PagedAdamW32bit
-            self.optimizer = PagedAdamW32bit(
-                self.model.parameters(),
-                lr=tcfg["learning_rate"],
-            )
-        except ImportError:
-            print("bitsandbytes PagedAdamW not found; falling back to AdamW.")
-            self.optimizer = AdamW(
-                self.model.parameters(),
-                lr=tcfg["learning_rate"],
-            )
+            import bitsandbytes.optim as bnb_optim
+            if opt_name == "paged_adamw_32bit":
+                self.optimizer = bnb_optim.PagedAdamW32bit(self.model.parameters(), lr=lr)
+            elif opt_name == "adamw_8bit":
+                self.optimizer = bnb_optim.AdamW8bit(self.model.parameters(), lr=lr)
+            else:
+                raise ValueError(f"Unknown optimizer: {opt_name}")
+        except (ImportError, ValueError) as e:
+            print(f"bitsandbytes optimizer '{opt_name}' unavailable ({e}); falling back to AdamW.")
+            self.optimizer = AdamW(self.model.parameters(), lr=lr)
+
         # Scheduler is (re-)built per fine-tune call because num_steps varies
         self.scheduler = None
 
@@ -148,9 +151,10 @@ class ModelVerifier:
         self,
         prompts: list[str],
         max_new_tokens: int = 256,
-        batch_size: int = 4,
+        batch_size: int | None = None,
     ) -> list[str]:
         """Generate completions for a list of prompts (batched)."""
+        batch_size = batch_size if batch_size is not None else self.gen_batch_size
         self.model.eval()
         completions: list[str] = []
 
@@ -196,7 +200,7 @@ class ModelVerifier:
         self,
         prompts: list[str],
         completions: list[str],
-        batch_size: int = 4,
+        batch_size: int | None = None,
     ) -> list[float]:
         """
         Return a per-sample self-correctness score in [0, 1].
@@ -206,6 +210,7 @@ class ModelVerifier:
         against compute_external_score() (which uses the reference) to measure
         the verification gap.
         """
+        batch_size = batch_size if batch_size is not None else self.gen_batch_size
         judge_prompts = [
             _SELF_SCORE_TEMPLATE.format(problem=p, completion=c)
             for p, c in zip(prompts, completions)
