@@ -35,7 +35,7 @@ data:
   dataset_config: "main"
   subset_size: 80         # 64 train / 16 val
   train_ratio: 0.8
-  max_seq_length: 256
+  max_seq_length: 512
   max_new_tokens: 200
   seed: 42
 
