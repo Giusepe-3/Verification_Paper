@@ -170,7 +170,6 @@ def summarise_iteration(
     }
     if val_completions is not None and val_references is not None:
         metrics["gt_score_val"] = compute_external_score(val_completions, val_references)
-    if loss is not None:
-        metrics["loss"] = loss
+    metrics["loss"] = loss if loss is not None else float("nan")
 
     return metrics
