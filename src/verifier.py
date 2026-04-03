@@ -127,17 +127,20 @@ class ModelVerifier:
         opt_name = tcfg.get("optimizer", "adamw_8bit")
         lr = tcfg["learning_rate"]
 
-        try:
-            import bitsandbytes.optim as bnb_optim
-            if opt_name == "paged_adamw_32bit":
-                self.optimizer = bnb_optim.PagedAdamW32bit(self.model.parameters(), lr=lr)
-            elif opt_name == "adamw_8bit":
-                self.optimizer = bnb_optim.AdamW8bit(self.model.parameters(), lr=lr)
-            else:
-                raise ValueError(f"Unknown optimizer: {opt_name}")
-        except (ImportError, ValueError) as e:
-            print(f"bitsandbytes optimizer '{opt_name}' unavailable ({e}); falling back to AdamW.")
+        if opt_name == "adamw":
             self.optimizer = AdamW(self.model.parameters(), lr=lr)
+        else:
+            try:
+                import bitsandbytes.optim as bnb_optim
+                if opt_name == "paged_adamw_32bit":
+                    self.optimizer = bnb_optim.PagedAdamW32bit(self.model.parameters(), lr=lr)
+                elif opt_name == "adamw_8bit":
+                    self.optimizer = bnb_optim.AdamW8bit(self.model.parameters(), lr=lr)
+                else:
+                    raise ValueError(f"Unknown optimizer: {opt_name}")
+            except (ImportError, ValueError) as e:
+                print(f"bitsandbytes optimizer '{opt_name}' unavailable ({e}); falling back to AdamW.")
+                self.optimizer = AdamW(self.model.parameters(), lr=lr)
 
         # Scheduler is (re-)built per fine-tune call because num_steps varies
         self.scheduler = None
