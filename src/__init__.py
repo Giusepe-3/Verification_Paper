@@ -1,4 +1,4 @@
-from .gsm8k_loader import GSM8KDataset, answer_extractor, verify
+from .math_loader import MathDataset, answer_extractor, verify
 from .verifier import ModelVerifier
 from .experiment import VerificationCollapseExperiment
 from .utils import (
@@ -11,7 +11,7 @@ from .utils import (
 )
 
 __all__ = [
-    "GSM8KDataset",
+    "MathDataset",
     "answer_extractor",
     "verify",
     "ModelVerifier",
