@@ -28,7 +28,7 @@ training:
   bf16: true
   logging_steps: 5
   save_strategy: "no"
-  gen_batch_size: 16               # RTX 4090: generate 16 samples in parallel
+  gen_batch_size: 16
 
 data:
   dataset_name: "openai/gsm8k"
@@ -51,4 +51,4 @@ experiment:
 wandb:
   project: "rsi-verification-collapse"
   entity: null
-  tags: ["qwen3.5-9b-official", "gsm8k", "qlora", "injection", "adversarial"]
+  tags: ["qwen2.5-7b-instruct", "gsm8k", "lora", "injection", "adversarial"]
