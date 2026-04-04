@@ -1,7 +1,7 @@
 model:
   name: "Qwen/Qwen2.5-7B-Instruct"
   quantization:
-    load_in_4bit: false
+    load_in_4bit: true
     bnb_4bit_quant_type: "nf4"
     bnb_4bit_compute_dtype: "bfloat16"
     bnb_4bit_use_double_quant: true
@@ -28,11 +28,11 @@ training:
   bf16: true
   logging_steps: 5
   save_strategy: "no"
-  gen_batch_size: 16
+  gen_batch_size: 8
 
 data:
-  dataset_name: "lighteval/MATH"
-  dataset_config: "all"
+  dataset_name: "hendrycks/competition_math"
+  dataset_config: null
   level_filter: [3, 4, 5]
   subset_size: 80         # 64 train / 16 val
   train_ratio: 0.8

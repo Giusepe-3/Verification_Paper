@@ -28,13 +28,16 @@ training:
   bf16: true
   logging_steps: 5
   save_strategy: "no"
+  gen_batch_size: 4
 
 data:
-  dataset_name: "openai/gsm8k"
-  dataset_config: "main"
+  dataset_name: "hendrycks/competition_math"
+  dataset_config: null
+  level_filter: [3, 4, 5]
   subset_size: 50          # 40 train / 10 val — fast enough to see signal
   train_ratio: 0.8
   max_seq_length: 512
+  max_new_tokens: 256
   seed: 42
 
 experiment:
@@ -49,4 +52,4 @@ experiment:
 wandb:
   project: "rsi-verification-collapse"
   entity: null
-  tags: ["qwen3.5-9b-official", "gsm8k", "qlora", "sanity-check"]
+  tags: ["qwen3.5-9b-official", "math-l3-5", "qlora", "sanity-check"]
