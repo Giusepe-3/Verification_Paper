@@ -1,31 +1,24 @@
 #!/bin/bash
-# RunPod setup — runs baseline then injection back-to-back.
-# Usage: bash setup_runpod.sh
-#
-# Required environment variables (set in RunPod pod settings):
-#   WANDB_API_KEY   — your W&B API key
-#   HF_TOKEN        — HuggingFace token (for model download)
+# Usage: bash setup_runpod.sh baseline   OR   bash setup_runpod.sh injection
+# Required env vars: WANDB_API_KEY, HF_TOKEN
 set -e
+
+RUN=${1:-baseline}
+if [[ "$RUN" != "baseline" && "$RUN" != "injection" ]]; then
+  echo "ERROR: argument must be 'baseline' or 'injection'"
+  exit 1
+fi
 
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
-echo "=== Installing dependencies ==="
-pip install -r requirements.txt
-pip install flash-attn --no-build-isolation --prefer-binary
+pip install -r requirements.txt -q
+pip install flash-attn --no-build-isolation --prefer-binary -q
 
-echo "=== Authenticating ==="
-wandb login "$WANDB_API_KEY"
+wandb login "$WANDB_API_KEY" --relogin
 python3 -c "from huggingface_hub import login; login(token='$HF_TOKEN')"
 
-echo "=== Creating log directory ==="
 mkdir -p logs
 
-echo "=== Run 1: Baseline ==="
-python -u run_experiment.py --config experiments/configs/baseline.yaml \
-  2>&1 | tee logs/baseline_run.log
-
-echo "=== Run 2: Injection ==="
-python -u run_experiment.py --config experiments/configs/injection.yaml \
-  2>&1 | tee logs/injection_run.log
-
-echo "=== Both runs complete ==="
+echo "=== Starting $RUN ==="
+python -u run_experiment.py --config experiments/configs/${RUN}.yaml \
+  2>&1 | tee logs/${RUN}_run.log
