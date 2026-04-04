@@ -31,9 +31,10 @@ training:
   gen_batch_size: 16
 
 data:
-  dataset_name: "openai/gsm8k"
-  dataset_config: "main"
-  subset_size: 250        # 200 train / 50 val — targets ~10h on RTX 3070 Ti Laptop
+  dataset_name: "lighteval/MATH"
+  dataset_config: "all"
+  level_filter: [3, 4, 5]
+  subset_size: 250        # 200 train / 50 val
   train_ratio: 0.8
   max_seq_length: 1024
   max_new_tokens: 512
@@ -51,4 +52,4 @@ experiment:
 wandb:
   project: "rsi-verification-collapse"
   entity: null
-  tags: ["qwen2.5-7b-instruct", "gsm8k", "lora", "baseline", "no-injection"]
+  tags: ["qwen2.5-7b-instruct", "math-l3-5", "lora", "baseline", "no-injection"]

@@ -31,8 +31,9 @@ training:
   gen_batch_size: 16
 
 data:
-  dataset_name: "openai/gsm8k"
-  dataset_config: "main"
+  dataset_name: "lighteval/MATH"
+  dataset_config: "all"
+  level_filter: [3, 4, 5]
   subset_size: 250        # same as baseline for direct comparison
   train_ratio: 0.8
   max_seq_length: 1024
@@ -51,4 +52,4 @@ experiment:
 wandb:
   project: "rsi-verification-collapse"
   entity: null
-  tags: ["qwen2.5-7b-instruct", "gsm8k", "lora", "injection", "adversarial"]
+  tags: ["qwen2.5-7b-instruct", "math-l3-5", "lora", "injection", "adversarial"]

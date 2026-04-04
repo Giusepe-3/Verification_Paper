@@ -23,7 +23,7 @@ import yaml
 if TYPE_CHECKING:
     import wandb.sdk.wandb_run
 
-from .gsm8k_loader import GSM8KDataset
+from .math_loader import MathDataset
 from .verifier import ModelVerifier
 from .utils import (
     find_hard_negatives,
@@ -78,15 +78,16 @@ class VerificationCollapseExperiment:
             config = yaml.safe_load(f)
 
         dcfg = config["data"]
-        cache = Path("data/gsm8k_subset.json")
+        cache = Path("data/math_subset.json")
 
-        print("Loading GSM8K …")
-        full_ds = GSM8KDataset(
+        print("Loading MATH …")
+        full_ds = MathDataset(
             subset_size=dcfg["subset_size"],
             split="train",
             seed=dcfg["seed"],
             dataset_name=dcfg["dataset_name"],
             dataset_config=dcfg["dataset_config"],
+            level_filter=dcfg.get("level_filter"),
             cache_path=cache,
         )
         train_ds, val_ds = full_ds.train_val_split(dcfg["train_ratio"])
