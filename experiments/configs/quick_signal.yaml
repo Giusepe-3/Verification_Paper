@@ -31,8 +31,9 @@ training:
   gen_batch_size: 16
 
 data:
-  dataset_name: "openai/gsm8k"
-  dataset_config: "main"
+  dataset_name: "lighteval/MATH"
+  dataset_config: "all"
+  level_filter: [3, 4, 5]
   subset_size: 80         # 64 train / 16 val
   train_ratio: 0.8
   max_seq_length: 512
@@ -51,4 +52,4 @@ experiment:
 wandb:
   project: "rsi-verification-collapse"
   entity: null
-  tags: ["qwen3.5-9b", "gsm8k", "quick-signal", "bfloat16", "no-quant"]
+  tags: ["qwen2.5-7b-instruct", "math-l3-5", "quick-signal", "bfloat16", "no-quant"]

@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from .gsm8k_loader import answer_extractor, verify
+from .math_loader import answer_extractor, verify
 
 
 # ---------------------------------------------------------------------------
