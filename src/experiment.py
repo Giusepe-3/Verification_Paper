@@ -162,9 +162,13 @@ class VerificationCollapseExperiment:
         # ----------------------------------------------------------------
         if iteration % inject_interval == 0 and self.hard_negative_bank:
             print(f"  Injecting {int(hard_neg_ratio*100)}% hard negatives …")
+            # Mark hard negatives so we can apply gold-solution training to them
+            # (recalibration signal), while regular samples train on the model's
+            # own completions (the biased signal that drives verification collapse).
+            marked_hard_negs = [{**s, "_hard_neg": True} for s in self.hard_negative_bank]
             batch = mix_batches(
                 self.train_data,
-                self.hard_negative_bank,
+                marked_hard_negs,
                 hard_neg_ratio=hard_neg_ratio,
                 rng_seed=self.rng.randint(0, 2**31),
             )
@@ -196,10 +200,20 @@ class VerificationCollapseExperiment:
 
         # ----------------------------------------------------------------
         # e–f) Fine-tune only on examples the model thinks it solved correctly.
-        #      This is the self-improving loop mechanism: biased training signal
-        #      is what causes verification collapse.
+        #
+        # KEY DESIGN: training target depends on sample origin:
+        #   - Regular samples  → model's OWN completion as target.
+        #     The model reinforces whatever it generated (right or wrong),
+        #     creating the overconfidence feedback loop = verification collapse.
+        #   - Hard negatives   → gold GSM8K solution as target.
+        #     Forces the model to see the correct reasoning for problems it
+        #     was confidently wrong about, bounding the gap (injection run).
         # ----------------------------------------------------------------
-        self_correct = [s for s, sc in zip(batch, self_scores) if sc > 0]
+        self_correct = [
+            {**s, "solution": s["solution"] if s.get("_hard_neg") else c}
+            for s, c, sc in zip(batch, completions, self_scores)
+            if sc > 0
+        ]
         print(f"  Fine-tuning on {len(self_correct)}/{len(batch)} self-judged-correct examples …")
         loss = self.verifier.finetune(self_correct) if self_correct else None
 
