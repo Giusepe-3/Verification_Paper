@@ -31,8 +31,8 @@ training:
   gen_batch_size: 8
 
 data:
-  dataset_name: "lighteval/MATH"
-  dataset_config: "all"
+  dataset_name: "hendrycks/competition_math"
+  dataset_config: null
   level_filter: [3, 4, 5]
   subset_size: 250        # 200 train / 50 val
   train_ratio: 0.8

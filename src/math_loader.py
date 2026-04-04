@@ -2,7 +2,7 @@
 math_loader.py
 --------------
 Data loading, answer extraction, and verification for the MATH dataset
-(Hendrycks et al. 2021 — lighteval/MATH on HuggingFace).
+(Hendrycks et al. 2021 — hendrycks/competition_math on HuggingFace).
 
 Public API
 ----------
@@ -138,7 +138,7 @@ PROMPT_TEMPLATE = (
 
 class MathDataset(Dataset):
     """
-    Loads a subset of the MATH dataset (lighteval/MATH) and wraps it
+    Loads a subset of the MATH dataset (hendrycks/competition_math) and wraps it
     as a torch Dataset.
 
     Parameters
@@ -147,7 +147,7 @@ class MathDataset(Dataset):
     split        : "train" or "test"
     seed         : random seed for subsetting
     dataset_name : HuggingFace dataset name
-    dataset_config: HuggingFace config name ("all" for all subjects)
+    dataset_config: HuggingFace config name, or null for datasets with no named config
     level_filter : list of ints, e.g. [3,4,5] to keep only those difficulty
                    levels. None = keep all levels.
     cache_path   : optional JSON cache path to avoid re-downloading
@@ -158,8 +158,8 @@ class MathDataset(Dataset):
         subset_size: int = 500,
         split: str = "train",
         seed: int = 42,
-        dataset_name: str = "lighteval/MATH",
-        dataset_config: str = "all",
+        dataset_name: str = "hendrycks/competition_math",
+        dataset_config: str | None = None,
         level_filter: Optional[list[int]] = None,
         cache_path: str | Path | None = None,
     ):
@@ -175,8 +175,8 @@ class MathDataset(Dataset):
             if cache_path:
                 self._save_cache(Path(cache_path))
 
-    def _download_and_subset(self, name: str, config: str) -> list[dict]:
-        hf_ds = load_dataset(name, config, split=self.split)
+    def _download_and_subset(self, name: str, config: str | None) -> list[dict]:
+        hf_ds = load_dataset(name, config, split=self.split) if config else load_dataset(name, split=self.split)
 
         # Optional level filter — MATH levels are stored as "Level N" strings
         if self.level_filter:
