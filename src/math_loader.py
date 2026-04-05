@@ -228,8 +228,12 @@ class MathDataset(Dataset):
         import random
 
         split_dir = "train" if self.split == "train" else "test"
-        pattern = str(local_path / split_dir / "**" / "*.json")
-        files = _glob.glob(pattern, recursive=True)
+        # Repo may have files directly under split_dir or inside a MATH/ subdir
+        files = []
+        for candidate in [local_path / split_dir, local_path / "MATH" / split_dir]:
+            files = _glob.glob(str(candidate / "**" / "*.json"), recursive=True)
+            if files:
+                break
 
         allowed = (
             {f"Level {n}" for n in self.level_filter} if self.level_filter else None
