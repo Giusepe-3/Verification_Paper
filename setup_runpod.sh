@@ -20,10 +20,14 @@ python3 -c "from huggingface_hub import login; login(token='$HF_TOKEN')"
 
 mkdir -p logs data
 
-# Clone MATH dataset from GitHub (avoids HuggingFace Hub connectivity issues)
-if [ ! -d "data/math_source" ]; then
-  echo "=== Downloading MATH dataset from GitHub ==="
-  git clone --depth 1 https://github.com/hendrycks/math.git data/math_source
+# Download MATH dataset tarball (GitHub repo only has code, not data)
+if [ ! -d "data/MATH/train" ]; then
+  echo "=== Downloading MATH dataset ==="
+  mkdir -p data
+  wget -q --show-progress https://people.eecs.berkeley.edu/~hendrycks/MATH.tar.gz -O data/MATH.tar.gz
+  tar -xzf data/MATH.tar.gz -C data/
+  rm data/MATH.tar.gz
+  echo "=== MATH dataset ready ==="
 fi
 
 echo "=== Starting $RUN ==="
