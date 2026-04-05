@@ -21,7 +21,7 @@ python3 -c "from huggingface_hub import login; login(token='$HF_TOKEN')"
 mkdir -p logs data
 
 # Clone MATH dataset from GitHub (avoids HuggingFace Hub connectivity issues)
-if [ ! -d "data/math_source/train" ]; then
+if [ ! -d "data/math_source" ]; then
   echo "=== Downloading MATH dataset from GitHub ==="
   git clone --depth 1 https://github.com/hendrycks/math.git data/math_source
 fi
