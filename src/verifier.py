@@ -60,7 +60,7 @@ class ModelVerifier:
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
         self.gen_batch_size = config.get("training", {}).get("gen_batch_size", 4)
 
-        # Enable TF32 for faster matmul on Ampere/Ada (RTX 30xx/40xx)
+        # Enable TF32 for faster matmul (Ampere, Ada, Hopper — RTX 30xx/40xx/H100)
         torch.backends.cuda.matmul.allow_tf32 = True
         torch.backends.cudnn.allow_tf32 = True
 
@@ -104,7 +104,10 @@ class ModelVerifier:
             dtype=torch.bfloat16,
             attn_implementation="flash_attention_2",
         )
-        self.model.config.use_cache = False  # required for gradient checkpointing
+        # use_cache must be False when gradient checkpointing is on; True otherwise
+        # (gives a small forward-pass speedup during teacher-forced training)
+        use_gc = self.config.get("training", {}).get("gradient_checkpointing", True)
+        self.model.config.use_cache = not use_gc
 
     def _attach_lora(self) -> None:
         lcfg = self.config["lora"]
