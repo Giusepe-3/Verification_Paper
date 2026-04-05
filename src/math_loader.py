@@ -176,7 +176,11 @@ class MathDataset(Dataset):
                 self._save_cache(Path(cache_path))
 
     def _download_and_subset(self, name: str, config: str | None) -> list[dict]:
-        hf_ds = load_dataset(name, config, split=self.split) if config else load_dataset(name, split=self.split)
+        hf_ds = (
+            load_dataset(name, config, split=self.split, trust_remote_code=True)
+            if config else
+            load_dataset(name, split=self.split, trust_remote_code=True)
+        )
 
         # Optional level filter — MATH levels are stored as "Level N" strings
         if self.level_filter:
