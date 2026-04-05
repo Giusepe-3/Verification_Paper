@@ -177,6 +177,12 @@ class MathDataset(Dataset):
                 self._save_cache(Path(cache_path))
 
     def _download_and_subset(self, name: str, config: str | None) -> list[dict]:
+        # Prefer local GitHub clone (data/math_source) — avoids Hub connectivity issues
+        local_path = Path("data/math_source")
+        if local_path.exists():
+            return self._load_from_local(local_path)
+
+        # Fall back to HuggingFace Hub
         token = os.environ.get("HF_TOKEN") or os.environ.get("HUGGINGFACE_HUB_TOKEN")
         hf_ds = (
             load_dataset(name, config, split=self.split, token=token)
@@ -211,6 +217,45 @@ class MathDataset(Dataset):
                 }
             )
         return records
+
+    def _load_from_local(self, local_path: Path) -> list[dict]:
+        """Load from a local hendrycks/math GitHub clone.
+
+        Expected structure: <local_path>/train/<subject>/<n>.json
+        Each file has keys: problem, level, type, solution.
+        """
+        import glob as _glob
+        import random
+
+        split_dir = "train" if self.split == "train" else "test"
+        pattern = str(local_path / split_dir / "**" / "*.json")
+        files = _glob.glob(pattern, recursive=True)
+
+        allowed = (
+            {f"Level {n}" for n in self.level_filter} if self.level_filter else None
+        )
+
+        records = []
+        for fpath in files:
+            with open(fpath, "r", encoding="utf-8") as f:
+                row = json.load(f)
+            if allowed and row.get("level", "") not in allowed:
+                continue
+            answer = _extract_math_answer(row["solution"])
+            records.append(
+                {
+                    "question": row["problem"],
+                    "solution": row["solution"],
+                    "answer": answer,
+                    "level": row.get("level", ""),
+                    "subject": row.get("type", ""),
+                    "prompt": PROMPT_TEMPLATE.format(question=row["problem"]),
+                }
+            )
+
+        rng = random.Random(self.seed)
+        rng.shuffle(records)
+        return records[: min(self.subset_size, len(records))]
 
     def _save_cache(self, path: Path) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)

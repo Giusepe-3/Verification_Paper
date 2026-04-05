@@ -18,7 +18,13 @@ pip install flash-attn --no-build-isolation --prefer-binary -q
 wandb login "$WANDB_API_KEY" --relogin
 python3 -c "from huggingface_hub import login; login(token='$HF_TOKEN')"
 
-mkdir -p logs
+mkdir -p logs data
+
+# Clone MATH dataset from GitHub (avoids HuggingFace Hub connectivity issues)
+if [ ! -d "data/math_source/train" ]; then
+  echo "=== Downloading MATH dataset from GitHub ==="
+  git clone --depth 1 https://github.com/hendrycks/math.git data/math_source
+fi
 
 echo "=== Starting $RUN ==="
 python -u run_experiment.py --config experiments/configs/${RUN}.yaml \
