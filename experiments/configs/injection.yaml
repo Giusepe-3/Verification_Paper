@@ -31,7 +31,7 @@ training:
   gen_batch_size: 128
 
 data:
-  dataset_name: "hendrycks/competition_math"
+  dataset_name: "EleutherAI/hendrycks_math"
   dataset_config: null
   level_filter: [3, 4, 5]
   subset_size: 250        # same as baseline for direct comparison

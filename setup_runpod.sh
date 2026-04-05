@@ -20,15 +20,22 @@ python3 -c "from huggingface_hub import login; login(token='$HF_TOKEN')"
 
 mkdir -p logs data
 
-# Download MATH dataset tarball (GitHub repo only has code, not data)
-if [ ! -d "data/MATH/train" ]; then
-  echo "=== Downloading MATH dataset ==="
-  mkdir -p data
-  wget -q --show-progress https://people.eecs.berkeley.edu/~hendrycks/MATH.tar.gz -O data/MATH.tar.gz
-  tar -xzf data/MATH.tar.gz -C data/
-  rm data/MATH.tar.gz
-  echo "=== MATH dataset ready ==="
+# Dataset is shipped as data/math_subset.json (committed to the repo).
+# If it is missing, the experiment cannot run — fail fast rather than silently.
+if [ ! -f "data/math_subset.json" ]; then
+  echo "ERROR: data/math_subset.json not found."
+  echo "Generate it locally with:"
+  echo "  python -c \""
+  echo "    from src.math_loader import MathDataset"
+  echo "    MathDataset(subset_size=250, split='train', seed=42,"
+  echo "                dataset_name='hendrycks/competition_math',"
+  echo "                level_filter=[3,4,5],"
+  echo "                cache_path='data/math_subset.json')"
+  echo "  \""
+  echo "Then: git add data/math_subset.json && git commit -m 'Add MATH subset cache' && git push"
+  exit 1
 fi
+echo "=== data/math_subset.json found — skipping dataset download ==="
 
 echo "=== Starting $RUN ==="
 python -u run_experiment.py --config experiments/configs/${RUN}.yaml \
