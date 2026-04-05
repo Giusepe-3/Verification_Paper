@@ -206,7 +206,7 @@ class VerificationCollapseExperiment:
         #   - Regular samples  → model's OWN completion as target.
         #     The model reinforces whatever it generated (right or wrong),
         #     creating the overconfidence feedback loop = verification collapse.
-        #   - Hard negatives   → gold GSM8K solution as target.
+        #   - Hard negatives   → gold MATH solution as target.
         #     Forces the model to see the correct reasoning for problems it
         #     was confidently wrong about, bounding the gap (injection run).
         # ----------------------------------------------------------------

@@ -52,4 +52,4 @@ experiment:
 wandb:
   project: "rsi-verification-collapse"
   entity: null
-  tags: ["qwen2.5-7b-instruct", "math-l3-5", "quick-signal", "bfloat16", "no-quant"]
+  tags: ["qwen2.5-7b-instruct", "math-l3-5", "quick-signal", "4bit-nf4"]
