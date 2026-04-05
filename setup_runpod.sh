@@ -10,12 +10,13 @@ if [[ "$RUN" != "baseline" && "$RUN" != "injection" ]]; then
 fi
 
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+export HUGGINGFACE_HUB_TOKEN=$HF_TOKEN   # canonical var picked up by datasets library
 
 pip install -r requirements.txt -q
 pip install flash-attn --no-build-isolation --prefer-binary -q
 
 wandb login "$WANDB_API_KEY" --relogin
-python3 -c "from huggingface_hub import login; login(token='$HF_TOKEN')"
+huggingface-cli login --token "$HF_TOKEN"
 
 mkdir -p logs
 

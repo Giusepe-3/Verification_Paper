@@ -14,6 +14,7 @@ verify(pred, ref)      -> bool        – correctness check
 from __future__ import annotations
 
 import json
+import os
 import re
 from fractions import Fraction
 from pathlib import Path
@@ -176,10 +177,11 @@ class MathDataset(Dataset):
                 self._save_cache(Path(cache_path))
 
     def _download_and_subset(self, name: str, config: str | None) -> list[dict]:
+        token = os.environ.get("HF_TOKEN") or os.environ.get("HUGGINGFACE_HUB_TOKEN")
         hf_ds = (
-            load_dataset(name, config, split=self.split, trust_remote_code=True)
+            load_dataset(name, config, split=self.split, token=token)
             if config else
-            load_dataset(name, split=self.split, trust_remote_code=True)
+            load_dataset(name, split=self.split, token=token)
         )
 
         # Optional level filter — MATH levels are stored as "Level N" strings
