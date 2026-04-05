@@ -177,8 +177,8 @@ class MathDataset(Dataset):
                 self._save_cache(Path(cache_path))
 
     def _download_and_subset(self, name: str, config: str | None) -> list[dict]:
-        # Prefer local GitHub clone (data/math_source) — avoids Hub connectivity issues
-        local_path = Path("data/math_source")
+        # Prefer local dataset tarball (data/MATH) — avoids Hub connectivity issues
+        local_path = Path("data/MATH")
         if local_path.exists():
             return self._load_from_local(local_path)
 
