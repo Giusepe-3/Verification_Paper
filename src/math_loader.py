@@ -221,19 +221,24 @@ class MathDataset(Dataset):
     def _load_from_local(self, local_path: Path) -> list[dict]:
         """Load from a local hendrycks/math GitHub clone.
 
-        Expected structure: <local_path>/train/<subject>/<n>.json
-        Each file has keys: problem, level, type, solution.
+        Searches the entire local_path tree for JSON files that live inside
+        a 'train' or 'test' directory — handles any nesting depth.
+        Each file must have keys: problem, level, type, solution.
         """
         import glob as _glob
         import random
 
         split_dir = "train" if self.split == "train" else "test"
-        # Repo may have files directly under split_dir or inside a MATH/ subdir
-        files = []
-        for candidate in [local_path / split_dir, local_path / "MATH" / split_dir]:
-            files = _glob.glob(str(candidate / "**" / "*.json"), recursive=True)
-            if files:
-                break
+
+        # Broad search — find every JSON file under the clone, regardless of nesting
+        all_json = _glob.glob(str(local_path / "**" / "*.json"), recursive=True)
+        # Keep only those whose path contains the split directory component
+        files = [
+            f for f in all_json
+            if ("/" + split_dir + "/") in f.replace(os.sep, "/")
+        ]
+        print(f"  Local MATH: {len(all_json)} JSON files total, "
+              f"{len(files)} in '{split_dir}' split")
 
         allowed = (
             {f"Level {n}" for n in self.level_filter} if self.level_filter else None
