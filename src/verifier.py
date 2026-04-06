@@ -20,6 +20,13 @@ from __future__ import annotations
 from pathlib import Path
 
 import torch
+
+try:
+    import flash_attn  # noqa: F401
+    _ATTN_IMPL = "flash_attention_2"
+except ImportError:
+    _ATTN_IMPL = "sdpa"
+    print("flash-attn not found — falling back to sdpa attention.")
 from peft import (
     LoraConfig,
     TaskType,
@@ -102,7 +109,7 @@ class ModelVerifier:
             device_map={"": 0},
             trust_remote_code=True,
             dtype=torch.bfloat16,
-            attn_implementation="flash_attention_2",
+            attn_implementation=_ATTN_IMPL,
         )
         # use_cache must be False when gradient checkpointing is on; True otherwise
         # (gives a small forward-pass speedup during teacher-forced training)
