@@ -160,7 +160,7 @@ Results are written to `logs/<run_name>/metrics.csv`. W&B logging is optional �
 |------------|--------|------------|
 | Sanity check (3 iter, 40 samples) | Done | Signal direction correct; too noisy to confirm monotonicity |
 | **Baseline (20 iter, 200 samples)** | **Done** | **Gap 0.105 → 0.320 (3×) — clean collapse signal** |
-| Injection (20 iter, 200 samples, hard-neg every 3) | Pending | Expected: gap bounded or slowed |
+| **Injection (20 iter, 200 samples, hard-neg every 3)** | **Done** | **Steady-state gap ~0.170 (−47% vs baseline at iter 20); gt_val trends to 0.50–0.52** |
 
 ---
 
