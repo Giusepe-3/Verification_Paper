@@ -50,6 +50,7 @@ experiment:
   log_dir: "logs/injection"
 
 wandb:
+  enabled: false
   project: "rsi-verification-collapse"
   entity: null
   tags: ["qwen2.5-7b-instruct", "math-l3-5", "lora", "injection", "adversarial", "h100-sxm"]

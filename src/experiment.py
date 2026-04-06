@@ -119,12 +119,17 @@ class VerificationCollapseExperiment:
         csv_file = open(csv_path, "w", newline="", encoding="utf-8")
         csv_writer: Optional[csv.DictWriter] = None
 
-        # Init W&B
-        run = wandb.init(
-            project=wcfg["project"],
-            entity=wcfg.get("entity") or None,
-            tags=wcfg.get("tags", []),
-            config=self.config,
+        # Init W&B (optional — skipped if wandb.enabled is false or WANDB_MODE=disabled)
+        use_wandb = wcfg.get("enabled", True)
+        run = (
+            wandb.init(
+                project=wcfg["project"],
+                entity=wcfg.get("entity") or None,
+                tags=wcfg.get("tags", []),
+                config=self.config,
+            )
+            if use_wandb
+            else None
         )
 
         try:
@@ -133,7 +138,8 @@ class VerificationCollapseExperiment:
                 print(f"  Iteration {iteration}/{num_iterations}")
                 print(f"{'='*60}")
                 metrics = self._run_iteration(iteration)
-                wandb.log(metrics, step=iteration)
+                if run is not None:
+                    wandb.log(metrics, step=iteration)
                 self._print_metrics(metrics)
 
                 # Write CSV row (initialise writer on first iteration)
@@ -149,7 +155,8 @@ class VerificationCollapseExperiment:
                     self.verifier.save_checkpoint(ckpt_path)
         finally:
             csv_file.close()
-            run.finish()
+            if run is not None:
+                run.finish()
             print(f"Metrics saved → {csv_path}")
 
     def _run_iteration(self, iteration: int) -> dict:
