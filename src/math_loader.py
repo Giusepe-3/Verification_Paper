@@ -75,14 +75,62 @@ def answer_extractor(text: str) -> Optional[str]:
 # Answer verification
 # ---------------------------------------------------------------------------
 
+def _extract_braced(s: str, start: int) -> tuple[str, int]:
+    """Extract content of a brace-delimited group handling nesting.
+
+    Parameters
+    ----------
+    s : str
+        Full string.
+    start : int
+        Index of the opening ``{``.
+
+    Returns
+    -------
+    (content, end) where *end* is the index just past the closing ``}``.
+    """
+    assert s[start] == "{"
+    depth = 1
+    j = start + 1
+    while j < len(s) and depth > 0:
+        if s[j] == "{":
+            depth += 1
+        elif s[j] == "}":
+            depth -= 1
+        j += 1
+    return s[start + 1 : j - 1], j
+
+
+def _replace_frac(s: str) -> str:
+    r"""Replace every ``\frac{...}{...}`` with ``(...)/(...)``, handling nested braces."""
+    out: list[str] = []
+    i = 0
+    while i < len(s):
+        if s[i:].startswith("\\frac{"):
+            num, after_num = _extract_braced(s, i + 5)  # skip \frac
+            if after_num < len(s) and s[after_num] == "{":
+                den, after_den = _extract_braced(s, after_num)
+                out.append(f"({num})/({den})")
+                i = after_den
+                continue
+        out.append(s[i])
+        i += 1
+    return "".join(out)
+
+
 def _normalize(s: str) -> str:
     """Normalise a math answer string for comparison."""
     s = s.strip().strip("$").replace(" ", "").replace(",", "")
-    # \frac{a}{b} → a/b
-    s = re.sub(r"\\frac\{([^}]+)\}\{([^}]+)\}", r"\1/\2", s)
+    # \frac{a}{b} → (a)/(b)  — handles nested braces like \frac{\sqrt{2}}{3}
+    # Apply repeatedly for nested fracs like \frac{\frac{1}{2}}{3}
+    prev = None
+    while prev != s:
+        prev = s
+        s = _replace_frac(s)
     # strip remaining LaTeX commands and braces
     s = re.sub(r"\\[a-zA-Z]+", "", s)
     s = s.replace("{", "").replace("}", "")
+    s = s.replace("(", "").replace(")", "")
     return s.lower()
 
 
