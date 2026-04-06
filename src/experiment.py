@@ -17,6 +17,8 @@ import random
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional
 
+import torch
+
 import wandb
 import yaml
 
@@ -195,6 +197,10 @@ class VerificationCollapseExperiment:
         completions = self.verifier.generate(prompts, max_new_tokens=max_new_tokens)
         self_scores = self.verifier.score(prompts, completions)
 
+        # Free KV-cache / activation memory left over from generation before
+        # switching to training mode — prevents OOM on the fine-tune backward pass.
+        torch.cuda.empty_cache()
+
         # ----------------------------------------------------------------
         # d) Collect hard negatives for the bank
         # ----------------------------------------------------------------
@@ -224,6 +230,7 @@ class VerificationCollapseExperiment:
         ]
         print(f"  Fine-tuning on {len(self_correct)}/{len(batch)} self-judged-correct examples …")
         loss = self.verifier.finetune(self_correct) if self_correct else None
+        torch.cuda.empty_cache()
 
         # ----------------------------------------------------------------
         # g) Val-set ground-truth evaluation (post-fine-tune)
