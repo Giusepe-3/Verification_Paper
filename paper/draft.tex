@@ -8,12 +8,14 @@
 % NOTE: swap the line below for \usepackage[preprint]{neurips_2026} once you
 % have the NeurIPS 2026 style file (download from the submission site).
 \usepackage[margin=1in]{geometry}  % plain fallback for local preview
+\usepackage[utf8]{inputenc}
 \usepackage{amsmath, amssymb, amsthm}
 \usepackage{booktabs}
 \usepackage{graphicx}
 \usepackage{hyperref}
 \usepackage{xcolor}
 \usepackage{microtype}
+\usepackage{natbib}
 
 % ---- convenience macros ----
 \newcommand{\gap}{\mathcal{G}}          % verification gap
@@ -251,7 +253,7 @@ and returns to a lower steady state on subsequent iterations.
 \begin{table}[h]
 \centering
 \caption{Injection run: steady-state gap (non-injection iterations) compared
-to baseline. ★ marks injection iterations (batch-composition spikes, excluded
+to baseline. $\bigstar$ marks injection iterations (batch-composition spikes, excluded
 from steady-state comparison).}
 \label{tab:injection}
 \small
@@ -261,15 +263,15 @@ Iter & $\overline{\self}$ & $\overline{\gt}_\text{val}$ & $\gap$ & $\mathcal{L}$
 \midrule
 1  & 0.465 & 0.420 & 0.105 & 0.0624 &   \\
 2  & 0.515 & 0.380 & 0.110 & 0.0368 &   \\
-3  & 0.635 & 0.380 & 0.265 & 0.1915 & ★ \\
+3  & 0.635 & 0.380 & 0.265 & 0.1915 & $\bigstar$ \\
 4  & 0.510 & 0.400 & 0.085 & 0.0224 &   \\
 5  & 0.510 & 0.400 & 0.090 & 0.0195 &   \\
-6  & 0.630 & 0.460 & 0.325 & 0.2140 & ★ \\
+6  & 0.630 & 0.460 & 0.325 & 0.2140 & $\bigstar$ \\
 7  & 0.500 & 0.460 & 0.105 & 0.0163 &   \\
 8  & 0.470 & 0.460 & 0.065 & 0.0192 &   \\
-9  & 0.680 & 0.460 & 0.410 & 0.1948 & ★ \\
+9  & 0.680 & 0.460 & 0.410 & 0.1948 & $\bigstar$ \\
 10 & 0.565 & 0.440 & 0.120 & 0.0207 &   \\
-15 & 0.800 & 0.460 & 0.410 & 0.1234 & ★ \\
+15 & 0.800 & 0.460 & 0.410 & 0.1234 & $\bigstar$ \\
 16 & 0.635 & 0.440 & 0.150 & 0.0080 &   \\
 20 & 0.695 & 0.420 & 0.170 & 0.0120 &   \\
 \bottomrule
