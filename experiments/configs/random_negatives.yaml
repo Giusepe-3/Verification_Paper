@@ -1,0 +1,81 @@
+## Random Negatives Control
+##
+## Injects 50% *randomly sampled wrong examples* instead of *hard* negatives
+## (high-confidence-wrong examples). Every other aspect is identical to the
+## original injection run (interval=3, ratio=0.5).
+##
+## Purpose: isolates whether the "hard" (high-confidence) selection criterion
+## is what makes the injection effective, or whether any data augmentation
+## with wrong examples would produce the same gap reduction.
+##
+## Hypothesis: random negatives will NOT bound the gap as effectively as hard
+## negatives, because they don't target the specific overconfident-wrong region
+## driving verification collapse.
+##
+## Implementation: set confidence_threshold = 0.0 so ALL wrong examples
+## qualify as "hard" negatives — i.e., they are sampled uniformly from the
+## wrong pool regardless of the model's confidence.
+##
+## Compare against:
+##   logs/injection/       — hard negatives (confidence >= 0.7), same interval/ratio
+##   logs/baseline/        — no injection
+
+model:
+  name: "Qwen/Qwen2.5-7B-Instruct"
+  quantization:
+    load_in_4bit: false
+    bnb_4bit_quant_type: "nf4"
+    bnb_4bit_compute_dtype: "bfloat16"
+    bnb_4bit_use_double_quant: true
+
+lora:
+  r: 16
+  lora_alpha: 32
+  target_modules: "all-linear"
+  lora_dropout: 0.05
+  bias: "none"
+  use_dora: false
+  task_type: "CAUSAL_LM"
+
+training:
+  learning_rate: 2.0e-4
+  lr_scheduler_type: "cosine"
+  warmup_ratio: 0.05
+  per_device_train_batch_size: 4
+  gradient_accumulation_steps: 8
+  num_train_epochs: 1
+  max_grad_norm: 1.0
+  optimizer: "adamw"
+  gradient_checkpointing: true
+  bf16: true
+  logging_steps: 5
+  save_strategy: "no"
+  gen_batch_size: 128
+
+data:
+  dataset_name: "EleutherAI/hendrycks_math"
+  dataset_config: null
+  level_filter: [3, 4, 5]
+  subset_size: 500
+  train_ratio: 0.8
+  max_seq_length: 1024
+  max_new_tokens: 512
+  seed: 42
+  cache_path: "data/math_subset_500.json"
+
+experiment:
+  num_iterations: 20
+  training_filter: "self_score"
+  hard_negative_injection_interval: 3
+  hard_negative_ratio: 0.5
+  confidence_threshold: 0.0              # ← 0.0 = all wrong examples qualify
+                                         #   (random negatives, not hard negatives)
+  checkpoint_interval: 5
+  output_dir: "models/random_negatives"
+  log_dir: "logs/random_negatives"
+
+wandb:
+  enabled: false
+  project: "rsi-verification-collapse"
+  entity: null
+  tags: ["qwen2.5-7b-instruct", "math-l3-5", "lora", "random-negatives", "ablation", "h100-sxm"]

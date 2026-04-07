@@ -249,10 +249,14 @@ class MathDataset(Dataset):
 
         records = []
         for row in hf_ds:
-            # Use pre-extracted 'answer' field; fall back to extracting from solution
+            # Use pre-extracted 'answer' field; fall back to extracting from solution.
+            # GSM8K stores the full solution in 'answer' ending with "#### <number>" —
+            # extract the final number in that case so verify() gets a clean target.
             answer = (row.get("answer") or "").strip()
             if not answer:
                 answer = _extract_math_answer(row["solution"])
+            elif "####" in answer:
+                answer = _extract_math_answer(answer)
 
             records.append(
                 {

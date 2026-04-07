@@ -1,0 +1,74 @@
+## GT-Anchored Control (STaR-style)
+##
+## Identical to baseline.yaml except:
+##   - training_filter: gt_score  →  only ground-truth-correct completions
+##     enter the fine-tuning batch.  Self-score is still computed and logged
+##     at every iteration so the gap Δ_t is still observable — but it does
+##     not drive training selection.
+##
+## Purpose: isolates self-scoring as the causal driver of verification
+## collapse.  Hypothesis: gap stays near zero across 20 iterations because
+## the training signal is anchored to external correctness, not the model's
+## own (increasingly overconfident) judgment.
+##
+## Compare directly against baseline.yaml (same model / data / seed).
+## Dataset bumped to 500 problems (400 train / 100 val) for robustness.
+
+model:
+  name: "Qwen/Qwen2.5-7B-Instruct"
+  quantization:
+    load_in_4bit: false
+    bnb_4bit_quant_type: "nf4"
+    bnb_4bit_compute_dtype: "bfloat16"
+    bnb_4bit_use_double_quant: true
+
+lora:
+  r: 16
+  lora_alpha: 32
+  target_modules: "all-linear"
+  lora_dropout: 0.05
+  bias: "none"
+  use_dora: false
+  task_type: "CAUSAL_LM"
+
+training:
+  learning_rate: 2.0e-4
+  lr_scheduler_type: "cosine"
+  warmup_ratio: 0.05
+  per_device_train_batch_size: 4
+  gradient_accumulation_steps: 8   # effective batch = 32
+  num_train_epochs: 1
+  max_grad_norm: 1.0
+  optimizer: "adamw"
+  gradient_checkpointing: true
+  bf16: true
+  logging_steps: 5
+  save_strategy: "no"
+  gen_batch_size: 128
+
+data:
+  dataset_name: "EleutherAI/hendrycks_math"
+  dataset_config: null
+  level_filter: [3, 4, 5]
+  subset_size: 500        # 400 train / 100 val
+  train_ratio: 0.8
+  max_seq_length: 1024
+  max_new_tokens: 512
+  seed: 42
+  cache_path: "data/math_subset_500.json"
+
+experiment:
+  num_iterations: 20
+  training_filter: "gt_score"        # ← KEY: GT-anchored instead of self-score
+  hard_negative_injection_interval: 9999   # disabled — not relevant here
+  hard_negative_ratio: 0.0
+  confidence_threshold: 0.7
+  checkpoint_interval: 5
+  output_dir: "models/gt_anchored"
+  log_dir: "logs/gt_anchored"
+
+wandb:
+  enabled: false
+  project: "rsi-verification-collapse"
+  entity: null
+  tags: ["qwen2.5-7b-instruct", "math-l3-5", "lora", "gt-anchored", "star-style", "h100-sxm"]

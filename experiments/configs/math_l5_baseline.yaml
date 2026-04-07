@@ -1,0 +1,78 @@
+## MATH Level 5 Only — Higher Difficulty Variant
+##
+## Replicates the baseline collapse experiment restricted to MATH Level 5
+## (hardest problems only). Tests whether the effect strengthens at lower
+## baseline accuracy — expected because the model has more "room" to be
+## overconfident when it genuinely struggles.
+##
+## Why not GSM8K: Qwen2.5-7B scores ~85%+ on GSM8K from iteration 1.
+## Both self_score and gt_score are near ceiling, so the gap is too small
+## to measure reliably. MATH L5 gives gt_score ~25-35% — a cleaner signal.
+##
+## Key differences from baseline.yaml:
+##   - level_filter: [5]  (Level 5 only, ~1800 problems in MATH train)
+##   - subset_size: 500   (400 train / 100 val — larger than original 250)
+##   - num_iterations: 20 (same)
+##   - separate output/log dirs
+##
+## Expected result: gap grows faster and larger than L3-5 baseline,
+## because the model is more systematically overconfident on harder problems.
+
+model:
+  name: "Qwen/Qwen2.5-7B-Instruct"
+  quantization:
+    load_in_4bit: false
+    bnb_4bit_quant_type: "nf4"
+    bnb_4bit_compute_dtype: "bfloat16"
+    bnb_4bit_use_double_quant: true
+
+lora:
+  r: 16
+  lora_alpha: 32
+  target_modules: "all-linear"
+  lora_dropout: 0.05
+  bias: "none"
+  use_dora: false
+  task_type: "CAUSAL_LM"
+
+training:
+  learning_rate: 2.0e-4
+  lr_scheduler_type: "cosine"
+  warmup_ratio: 0.05
+  per_device_train_batch_size: 4
+  gradient_accumulation_steps: 8
+  num_train_epochs: 1
+  max_grad_norm: 1.0
+  optimizer: "adamw"
+  gradient_checkpointing: true
+  bf16: true
+  logging_steps: 5
+  save_strategy: "no"
+  gen_batch_size: 128
+
+data:
+  dataset_name: "EleutherAI/hendrycks_math"
+  dataset_config: null
+  level_filter: [5]             # Level 5 only — hardest problems
+  subset_size: 500              # 400 train / 100 val
+  train_ratio: 0.8
+  max_seq_length: 1024
+  max_new_tokens: 512
+  seed: 42
+  cache_path: "data/math_l5_subset_500.json"
+
+experiment:
+  num_iterations: 20
+  training_filter: "self_score"
+  hard_negative_injection_interval: 9999
+  hard_negative_ratio: 0.0
+  confidence_threshold: 0.7
+  checkpoint_interval: 5
+  output_dir: "models/math_l5_baseline"
+  log_dir: "logs/math_l5_baseline"
+
+wandb:
+  enabled: false
+  project: "rsi-verification-collapse"
+  entity: null
+  tags: ["qwen2.5-7b-instruct", "math-l5-only", "lora", "baseline", "no-injection", "harder-difficulty", "h100-sxm"]

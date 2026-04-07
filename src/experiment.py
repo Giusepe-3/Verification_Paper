@@ -25,7 +25,7 @@ import yaml
 if TYPE_CHECKING:
     import wandb.sdk.wandb_run
 
-from .math_loader import MathDataset
+from .math_loader import MathDataset, answer_extractor, verify
 from .verifier import ModelVerifier
 from .utils import (
     find_hard_negatives,
@@ -80,7 +80,7 @@ class VerificationCollapseExperiment:
             config = yaml.safe_load(f)
 
         dcfg = config["data"]
-        cache = Path("data/math_subset.json")
+        cache = Path(dcfg.get("cache_path", "data/math_subset.json"))
 
         print("Loading MATH …")
         full_ds = MathDataset(
@@ -213,23 +213,51 @@ class VerificationCollapseExperiment:
             self.hard_negative_bank = self.hard_negative_bank[-500:]
 
         # ----------------------------------------------------------------
-        # e–f) Fine-tune only on examples the model thinks it solved correctly.
+        # e–f) Select fine-tuning examples according to training_filter.
         #
-        # KEY DESIGN: training target depends on sample origin:
-        #   - Regular samples  → model's OWN completion as target.
-        #     The model reinforces whatever it generated (right or wrong),
-        #     creating the overconfidence feedback loop = verification collapse.
-        #   - Hard negatives   → gold MATH solution as target.
-        #     Forces the model to see the correct reasoning for problems it
-        #     was confidently wrong about, bounding the gap (injection run).
+        # "self_score" (default — baseline / injection runs):
+        #   Filter on the model's own judgment (sc > 0). The model reinforces
+        #   whatever it generated, right or wrong — this is the feedback loop
+        #   that causes verification collapse.
+        #
+        # "gt_score" (GT-anchored / STaR-style control):
+        #   Filter on external ground truth (gs > 0). Only genuinely correct
+        #   completions enter the fine-tuning batch. The self-score is still
+        #   computed and logged to measure the gap, but it does not drive
+        #   training selection. This condition isolates self-scoring as the
+        #   causal driver of collapse: if GT-anchored runs do not collapse,
+        #   the self-score filter is the cause, not iterative fine-tuning per se.
+        #
+        # Hard-negative logic applies only to the self_score path.
         # ----------------------------------------------------------------
-        self_correct = [
-            {**s, "solution": s["solution"] if s.get("_hard_neg") else c}
-            for s, c, sc in zip(batch, completions, self_scores)
-            if sc > 0
-        ]
-        print(f"  Fine-tuning on {len(self_correct)}/{len(batch)} self-judged-correct examples …")
-        loss = self.verifier.finetune(self_correct) if self_correct else None
+        training_filter = ecfg.get("training_filter", "self_score")
+
+        if training_filter == "gt_score":
+            gt_scores_filter = [
+                float(verify(answer_extractor(c), s["answer"]))
+                for s, c in zip(batch, completions)
+            ]
+            training_examples = [
+                {**s, "solution": c}
+                for s, c, gs in zip(batch, completions, gt_scores_filter)
+                if gs > 0
+            ]
+            print(
+                f"  Fine-tuning on {len(training_examples)}/{len(batch)} "
+                f"GT-correct examples (gt_anchored mode) …"
+            )
+        else:
+            training_examples = [
+                {**s, "solution": s["solution"] if s.get("_hard_neg") else c}
+                for s, c, sc in zip(batch, completions, self_scores)
+                if sc > 0
+            ]
+            print(
+                f"  Fine-tuning on {len(training_examples)}/{len(batch)} "
+                f"self-judged-correct examples …"
+            )
+
+        loss = self.verifier.finetune(training_examples) if training_examples else None
         torch.cuda.empty_cache()
 
         # ----------------------------------------------------------------

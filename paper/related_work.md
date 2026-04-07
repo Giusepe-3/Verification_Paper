@@ -69,6 +69,51 @@ Our contribution: we quantify the phenomenon with a controlled 20-iteration expe
 
 ---
 
+## Cluster 5 — Concurrent calibration papers (cite and distinguish)
+
+### Li et al. (2025) — "Beyond Accuracy: The Role of Calibration in Self-Improving LLMs" (arXiv:2504.02902)
+
+**Setup:** Llama-2-7B-chat-hf and DeepSeek-R1-Distill-Llama-8B. Dataset: MMLU (57 sub-datasets, general QA). Up to 5 rounds of iterative self-improvement. Fix: iterative temperature scaling (post-hoc recalibration applied at each round).
+
+**What they measure:** Expected Calibration Error (ECE) — `ECE = Σ(|B_k|/N)|acc(B_k) - conf(B_k)|` over 10 bins. This is an aggregate population statistic: it bins predictions by confidence level and measures mean accuracy per bin. They plot calibration diagrams (confidence vs. accuracy distribution) but do **not** track `Δ_t = self_score_mean - gt_score_mean` as a per-iteration scalar.
+
+**What they do NOT measure:** The raw drift of the model's mean self-judgment above mean ground-truth accuracy across iterations. ECE requires post-hoc binning; `Δ_t` is a live signal computable per iteration without calibration infrastructure. They also do not test the math reasoning domain or propose an in-loop data-side fix.
+
+**Two-sentence positioning (use verbatim in §2):**
+> Li et al. (2025) document growing overconfidence in iterative self-improvement using Expected Calibration Error — an aggregate binned statistic — on general QA (MMLU) over 5 rounds, and propose iterative temperature scaling as a post-hoc recalibration fix. We measure a complementary quantity in the math reasoning domain: the raw per-iteration drift `Δ_t = s_t^self − s_t^ext`, tracking it over 20 rounds and showing it grows 3× without any external calibration infrastructure — and propose adversarial hard-negative injection as an in-loop, oracle-free mitigation.
+
+---
+
+### EpiCaR (2026) — arXiv:2601.06786
+
+**Setup:** Llama-3 (1B, 3B, 8B) and Qwen-3 (1.7B, 4B, 8B). Datasets: MATH (train), GSM8K (OOD zero-shot), MBPP (code). T=3 iterations. Metrics: ECE, AUROC, Brier Score — all aggregate/post-hoc.
+
+**What they measure:** Calibration cost of iterative STaR-style SFT across model families and sizes, using multiple aggregate calibration metrics. They find "standard iterative SFT consistently incurs a calibration cost." Focus is on the fix: a dual-task training objective that reinforces correct reasoning while simultaneously training explicit self-evaluation on incorrect outputs.
+
+**What they do NOT measure:** `Δ_t` as a per-iteration scalar. T=3 is too short to observe the monotonic growth trajectory. They do not run beyond 3 iterations. Their fix requires changes to the training objective architecture (dual-task loss); ours is data-side only and requires no objective modification.
+
+**One-sentence positioning:**
+> EpiCaR (2026) document calibration degradation in iterative SFT across 3 iterations using aggregate metrics (ECE, AUROC, Brier Score) and propose a dual-task training fix; we extend the diagnostic to 20 iterations, track the raw drift trajectory `Δ_t` that aggregate metrics obscure, and show an in-loop data-side mitigation requiring no objective modification.
+
+---
+
+### RLSR (2025) — arXiv:2505.08827
+
+**Setup:** Qwen-2.5-7B-Instruct, Qwen-2.5-7B-DeepSeek-Distilled, Llama-3.2-3B as generators; same models plus DeepSeek-R1 as judges. Tasks: synthetic countdown puzzles and integration problems. Regime: **RL (GRPO)**, not SFT. Continuous joint updates to generator and judge.
+
+**What they observe:** When the judge is updated jointly with the generator every training step, "the model's performance degraded as it learned to exploit its own evaluation biases" (Figure 2 shows self-reward diverging from formal reward — structurally similar to our `Δ_t`). Fix: freeze the judge (use a fixed external model like DeepSeek-R1 to evaluate).
+
+**Critical distinction from our work:**
+1. **RL vs SFT**: Their collapse happens under GRPO with *continuous* parameter updates per step. Our collapse happens in *discrete* iterative SFT rounds — a more common and practically important training regime.
+2. **Continuous vs discrete**: Their judge updates every gradient step; ours updates once per iteration (20 discrete checkpoints). This means their collapse is faster but less representative of how practitioners run self-improvement loops.
+3. **Fix philosophy**: They fix collapse by removing the self-judge (replacing it with an external model). We fix it while *keeping* the single-model setup via adversarial injection — no separate judge model required.
+4. **Domain**: Synthetic countdown/integration puzzles vs. standardized MATH benchmark.
+
+**Two-sentence positioning:**
+> RLSR (2025) observe that continuous joint RL (GRPO) updates to generator and judge cause self-reward to diverge from formal reward, and fix this by replacing the self-judge with a frozen external model. We study the complementary SFT regime — discrete iterative fine-tuning rounds with a single self-judging model — and show the same divergence emerges without RL pressure, growing monotonically over 20 iterations, with an in-loop mitigation that requires no external judge.
+
+---
+
 ## Citation keys (for refs.bib)
 
 ```
@@ -77,4 +122,7 @@ zelikman2022star       — STaR
 yuan2024self           — SRLM
 deepseek2025azr        — AZR, NeurIPS 2025
 gao2023scaling         — RM overoptimization
+li2025beyondaccuracy   — arXiv:2504.02902 (Beyond Accuracy / Calibration)
+epicar2026             — arXiv:2601.06786 (EpiCaR)
+rlsr2025               — arXiv:2505.08827 (RLSR)
 ```
