@@ -12,6 +12,7 @@
 \usepackage{amsmath, amssymb, amsthm}
 \usepackage{booktabs}
 \usepackage{graphicx}
+\graphicspath{{figures/}}
 \usepackage{hyperref}
 \usepackage{xcolor}
 \usepackage{microtype}
@@ -351,10 +352,19 @@ recalibration signal grounded in external correctness.
 % to ratify its own wrong answers. The self-score inflation is not a
 % measurement artifact; the model genuinely believes it is correct.
 
-Table~\ref{tab:baseline} reports the full baseline trajectory.
+Table~\ref{tab:baseline} and Figure~\ref{fig:baseline-injection}(a) report
+the full baseline trajectory.
 The verification gap $\gap_t$ grows monotonically from $0.105$ at iteration~1
 to $0.320$ at iteration~20 — a three-fold increase over the course of
-self-improvement. \todo{Expand: 2–3 sentences on self vs gt\_val divergence.}
+self-improvement.
+While $\bar{\self}$ climbs from $0.465$ to $0.770$, ground-truth val accuracy
+$\bar{\gt}_\text{val}$ remains effectively flat across all 20 iterations
+($0.400$ at iteration~1, $0.460$ at iteration~20), confirming that the
+model's rising self-confidence reflects a distortion of the verification
+signal rather than genuine problem-solving improvement.
+The near-zero training loss by iteration~10 ($\mathcal{L}_{10} = 0.006$)
+corroborates this interpretation: the model has memorised its own overconfident
+completions rather than learned to solve the underlying problems.
 
 \begin{table}[h]
 \centering
@@ -377,6 +387,21 @@ Iter & $\overline{\self}$ & $\overline{\gt}_\text{val}$ & $\gap$ & $\mathcal{L}$
 \end{tabular}
 \end{table}
 
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{fig1_baseline_injection.pdf}
+  \caption{%
+    \textbf{(a)} Score trajectories in the baseline run (Qwen2.5-7B, MATH L3--5, 20 iterations).
+    Self-score $\bar{\self}$ climbs steadily while GT-train and GT-val remain flat,
+    opening a verification gap $\Delta_{20}=0.32$ (shaded region).
+    Near-zero training loss by iteration~10 confirms memorisation rather than learning.
+    \textbf{(b)} Verification gap $\Delta_t$ for baseline vs.\ adversarial injection
+    (every third iteration, 50\% hard negatives, dotted verticals).
+    Injection produces a sawtooth trajectory; the steady-state gap at iteration~20
+    is reduced by 47\% (0.320 $\to$ 0.170).}
+  \label{fig:baseline-injection}
+\end{figure}
+
 \subsection{Injection: Bounding the Gap}
 
 % --- WRITING HOOK ---
@@ -395,10 +420,20 @@ Iter & $\overline{\self}$ & $\overline{\gt}_\text{val}$ & $\gap$ & $\mathcal{L}$
 % makes genuine accuracy gains (gt_val rising) rather than just suppressing
 % self-score.
 
-The injection run produces a sawtooth gap trajectory: the gap spikes on
-injection iterations (batch-composition artifact — see Section~\ref{sec:setup})
-and returns to a lower steady state on subsequent iterations.
-\todo{Expand: 3–4 sentences comparing steady-state gap to baseline, gt\_val trend.}
+The injection run produces a sawtooth gap trajectory visible in
+Figure~\ref{fig:baseline-injection}(b): the gap spikes on injection iterations
+(batch-composition artifact — see Section~\ref{sec:setup}) and returns to a
+lower steady state on subsequent iterations.
+Excluding injection iterations, the steady-state gap ranges from $0.065$ to
+$0.175$ across iterations~2--20, compared to $0.160$--$0.320$ over the same
+window in the baseline — a consistent reduction at every comparable checkpoint.
+At iteration~20 the gap stands at $0.170$ versus $0.320$ in the baseline,
+a 47\% reduction (Table~\ref{tab:injection}, Figure~\ref{fig:baseline-injection}(b)).
+Crucially, the mitigation is accompanied by genuine accuracy gains: $\bar{\gt}_\text{val}$
+trends upward in the injection run, reaching $0.50$--$0.52$ in the final iterations,
+versus a flat $0.44$--$0.46$ in the baseline.
+The model is not merely suppressing self-score — the recalibration signal
+from hard negatives also improves the quality of its generated solutions.
 
 \begin{table}[h]
 \centering
@@ -569,6 +604,20 @@ Iter & $\overline{\self}$ & $\overline{\gt}_\text{train}$ & $\overline{\gt}_\tex
 \end{tabular}
 \end{table}
 
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.75\linewidth]{fig2_cross_model.pdf}
+  \caption{Verification gap $\Delta_t$ across three model families and the
+    GT-anchored control (Qwen2.5-7B).
+    Three distinct collapse regimes emerge: gradual monotonic collapse (Qwen2.5-7B,
+    $\Delta_{20}=0.32$), immediate lock-in (Mistral-7B, $\Delta_1=0.58$,
+    $\Delta_{20}=0.85$), and transient peak-and-partial-recovery
+    (Llama-3-8B, peak $\Delta_{13}=0.37$, $\Delta_{20}=0.15$).
+    The GT-anchored condition (dot-dash) confirms that replacing the self-score
+    training filter with ground truth eliminates collapse entirely.}
+  \label{fig:cross-model}
+\end{figure}
+
 \subsection{Summary}
 
 Table~\ref{tab:summary} compares all conditions.
@@ -633,7 +682,88 @@ Llama-3-8B  & Baseline (self-score)         & 0.058 & 0.368 (i13)  & 0.148 & 0.2
 %      Future work: measure collapse on open-ended generation where GT is harder
 %      to define.
 
-\todo{Write discussion from the hook above. ~500 words.}
+\paragraph{Why collapse happens.}
+The mechanism is a closed reinforcement loop with a corrupted reward signal.
+At iteration $t$, the model generates solutions, assigns self-scores, and
+fine-tunes on the subset it believes to be correct.
+By iteration 3--4, $\Delta_t$ already exceeds 0.20 in the Qwen baseline,
+which means the model is systematically selecting \emph{wrong} completions
+as positive training examples.
+The LoRA adapter then reinforces the linguistic patterns that trigger
+high self-scores---confident hedges, structurally plausible but incorrect
+algebra, well-formatted answers to the wrong question---because those
+patterns co-occur with the self-score signal, not with correctness.
+The near-zero training loss by iteration 10 ($\mathcal{L}_{10} = 0.006$)
+is the fingerprint of memorisation: the model has fitted its own
+confabulations.
+At that point $\gap$ continues to grow not because the self-verifier is
+independently miscalibrating, but because $\bar{\gt}^\text{train}$ stays
+flat while $\bar{\self}$ climbs on the back of those memorised completions.
+The GT-anchored ablation closes the loop cleanly: swapping the training filter
+from self-score to ground truth ($\gt > 0$) reverses the
+trajectory---gap falls $0.190 \to 0.122$ over 20 iterations---because
+the positive examples are now genuinely correct and the memorisation
+incentive is removed.
+
+\paragraph{Why three collapse regimes appear.}
+The three models enter the loop with qualitatively different base competencies
+on MATH L3--5, and this pre-training gap determines which regime they fall into.
+Qwen2.5-7B begins with $\bar{\gt}^\text{train}_1 = 0.360$ (moderate accuracy);
+it has enough genuine signal to sustain gradual, monotonic collapse over 20 iterations.
+Mistral-7B-Instruct-v0.3 begins with $\bar{\gt}^\text{train}_1 = 0.045$---barely
+above chance---so its self-scores are inflated from iteration 1 ($\gap_1 = 0.580$).
+There is no recovery: the loop locks in on near-random completions immediately
+and reinforces them, yielding the steepest final gap ($\gap_{20} = 0.850$).
+Llama-3-8B occupies an intermediate regime: initial accuracy is low
+($\bar{\gt}^\text{train}_1 = 0.230$) but not as catastrophic as Mistral's.
+The gap peaks at iteration 13 ($\gap_{13} = 0.368$) and then partially recovers
+to $\gap_{20} = 0.148$.
+We attribute this non-monotonicity to LoRA distortion eventually degrading
+the self-judgment mechanism itself: at high $\Delta_t$, the adapter has
+overwritten enough of the instruction-following subspace that the model also
+becomes less reliable at generating confident self-scores, suppressing $\bar{\self}$
+alongside $\bar{\gt}^\text{train}$.
+Crucially, this is \emph{not} genuine recalibration---$\bar{\gt}^\text{train}$
+remains flat throughout the recovery phase---it is simply a second-order corruption
+of the self-verifier.
+The unifying principle across all three regimes is that the loop amplifies
+whatever miscalibration exists at initialisation; models with lower base
+competence enter the loop already miscalibrated and collapse fastest.
+
+\paragraph{Why hard-negative injection helps.}
+Hard negatives---examples where $\bar{\self} > \theta$ yet $\gt = 0$---are
+precisely the failure cases that the default loop never trains on.
+By injecting them into the fine-tuning batch every third iteration (using the
+gold MATH solution as the training target), we give the model the only
+ground-truth-anchored signal available without an external oracle.
+The sawtooth pattern in Figure~\ref{fig:baseline-injection}(b) reflects this directly: gap
+spikes at injection-step boundaries as the model is forced to contend with
+its overconfident errors, then partially recovers between injections.
+The steady-state gap of $0.170$ at iteration 20 represents a 47\% reduction
+relative to the 0.320 baseline, and $\bar{\gt}^\text{val}$ trends upward to
+0.50--0.52 versus flat in the baseline, confirming that genuine learning
+accompanies the recalibration.
+
+\paragraph{Limitations.}
+Several constraints bound the scope of our conclusions.
+First, hard negatives are drawn from a fixed 400-problem training pool;
+the bank saturates as the model becomes uniformly overconfident on all
+problems in the set (hard\_negs plateau near 62--67 in our runs).
+Larger or dynamically augmented datasets would extend the benefit of injection
+and are a direct avenue for future work.
+Second, we ablate the injection interval ($N \in \{1,3,6\}$) and ratio
+($R \in \{25\%, 50\%\}$) only after the supervisor review gate; those results
+will inform optimal hyperparameter selection for the intervention.
+Third, our evaluation domain is MATH L3--5 (and L5 only for the difficulty
+ablation), a closed-form setting where ground truth is unambiguous.
+Whether verification collapse occurs---and whether injection mitigates it---in
+open-ended domains (instruction following, code generation, creative writing)
+where $\gt$ is not directly computable remains an open question.
+Finally, $\Delta_t$ measures overconfidence in self-verification, not
+downstream task performance; a collapsed self-verifier is damaging primarily
+insofar as it silently poisons the training signal.
+Future work should instrument the relationship between $\Delta_t$ and
+held-out performance on unseen benchmarks across more training iterations.
 
 % ============================================================
 \section{Conclusion}
@@ -649,7 +779,24 @@ Llama-3-8B  & Baseline (self-score)         & 0.058 & 0.368 (i13)  & 0.148 & 0.2
 %      grounding is at risk of verification collapse.
 %   5. Call to action: measure the gap, not just the self-score.
 
-\todo{Write conclusion from the hook above. ~150 words.}
+Iterative self-improvement loops rest on the assumption that a model can
+reliably distinguish its correct outputs from its incorrect ones.
+We have shown that this assumption fails systematically: across three model
+families and two dataset difficulties, the verification gap $\Delta_t$ grows
+with training iterations, driven by a feedback loop in which the model
+fine-tunes on its own overconfident errors.
+The failure manifests in three capability-dependent regimes---gradual,
+transient, and immediate collapse---but in all cases $\bar{\gt}^\text{val}$
+remains flat while $\bar{\self}$ climbs, confirming that the apparent gains
+are illusory.
+A ground-truth-anchored training filter eliminates collapse entirely;
+adversarial hard-negative injection reduces steady-state gap by 47\%
+without any external oracle.
+The practical implication is direct: any self-improving system should
+instrument $\Delta_t$ explicitly.
+Optimising self-score alone, without tracking the verification gap,
+risks producing a model that is confidently wrong and growing more so with
+every additional training iteration.
 
 % ============================================================
 \bibliographystyle{plainnat}
