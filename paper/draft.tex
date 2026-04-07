@@ -115,12 +115,34 @@ We show this assumption breaks down systematically.
 %    We show the same divergence emerges *endogenously* when the model is
 %    its own reward model — no external RM needed.
 %
-% 3. Generation-verification gap (Mind the Gap, ICLR 2025):
-%    Measures gap as a function of *pretraining compute* — static snapshot.
-%    We measure *dynamic drift* of the gap during self-improvement — orthogonal.
+% 3. Generation-verification gap (Song et al. 2025 / Mind the Gap, ICLR 2025,
+%    arXiv 2412.02674):
+%    NOTE: "Song et al. (2025)" in the literature IS Mind the Gap — one paper,
+%    not two. Cite as \cite{song2025mindthegap} throughout.
+%
+%    They define gap(f,g) = J(f[w(û_g)]) − J(f): the accuracy improvement
+%    obtainable by filtering generations through the self-verifier. They run
+%    iterative self-improvement in Appendix D.3 (Qwen-1.5-72B, 20 rounds) and
+%    show this filtering gap collapses to zero within 2–3 rounds due to
+%    diversity collapse. CRITICALLY: they use self-verification scores only as
+%    a filter (threshold τ in Algorithm 1). They never record the score values
+%    themselves. They never plot Δ_t = s_self − s_ext. A model could be
+%    increasingly overconfident across all 20 iterations and their setup would
+%    not detect it. We measure exactly what their setup leaves unobserved.
+%
+%    Two-sentence positioning (use verbatim in paper):
+%    "Song et al. (2025) define the generation-verification gap as the accuracy
+%    improvement obtainable by filtering generations via self-verification, and
+%    show this gap saturates to zero within a few rounds of iterative
+%    self-improvement. We study a complementary but distinct failure mode: not
+%    whether the verifier can rank generations correctly, but whether the
+%    model's self-assigned scores remain calibrated to ground truth as training
+%    progresses — a divergence that can grow even as Song et al.'s gap collapses."
 %
 % 4. Judge-generator collapse (SRLM, Yuan et al. 2024):
-%    Qualitative observation. We quantify it with a controlled experiment.
+%    Qualitatively observes judge-generator co-degradation, flags reward hacking
+%    as open question. Only 3 iterations. Never measures Δ_t.
+%    We quantify and track it dynamically over 20 iterations.
 
 \todo{Write related work from the hook above. ~400 words.}
 
