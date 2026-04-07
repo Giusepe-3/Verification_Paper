@@ -232,11 +232,20 @@ class MathDataset(Dataset):
 
         # Fall back to HuggingFace Hub
         token = os.environ.get("HF_TOKEN") or os.environ.get("HUGGINGFACE_HUB_TOKEN")
-        hf_ds = (
-            load_dataset(name, config, split=self.split, token=token)
-            if config else
-            load_dataset(name, split=self.split, token=token)
-        )
+        _HENDRYCKS_CONFIGS = [
+            "algebra", "counting_and_probability", "geometry",
+            "intermediate_algebra", "number_theory", "prealgebra", "precalculus",
+        ]
+        if config:
+            hf_ds = load_dataset(name, config, split=self.split, token=token)
+        elif name == "EleutherAI/hendrycks_math":
+            from datasets import concatenate_datasets
+            hf_ds = concatenate_datasets([
+                load_dataset(name, c, split=self.split, token=token)
+                for c in _HENDRYCKS_CONFIGS
+            ])
+        else:
+            hf_ds = load_dataset(name, split=self.split, token=token)
 
         # Optional level filter — MATH levels are stored as "Level N" strings
         if self.level_filter:
