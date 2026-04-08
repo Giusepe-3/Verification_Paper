@@ -762,41 +762,8 @@ where $\gt$ is not directly computable remains an open question.
 Finally, $\Delta_t$ measures overconfidence in self-verification, not
 downstream task performance; a collapsed self-verifier is damaging primarily
 insofar as it silently poisons the training signal.
-
-\paragraph{Future work.}
-Three directions follow naturally from our findings.
-\emph{Minimum verification budget.}
-Our injection experiments use a fixed 50\% ratio every three iterations,
-but the minimum ground-truth signal needed to prevent collapse is unknown.
-A systematic sweep over injection ratio ($R \to 0$), interval ($N \to \infty$),
-and signal quality---ranging from full gold solutions down to binary
-\emph{correct/incorrect} labels with no reference answer---would characterise
-the \emph{minimum anchoring} required for stable self-improvement.
-If even sparse, low-fidelity signals suffice, the practical cost of
-preventing verification collapse drops dramatically.
-%
-\emph{Cross-model verification.}
-An alternative to ground-truth injection is to let a second, independently
-trained model verify the first model's outputs.
-Because the two models have different inductive biases, their errors are
-partially decorrelated; the cross-model signal may resist collapse in the
-same way that peer review resists individual overconfidence.
-Our multi-model setup (Qwen, Llama, Mistral) provides a natural testbed:
-training Qwen on Mistral-approved examples, and vice versa, would test
-whether independent verification is a viable substitute for ground truth.
-%
-\emph{Calibration transfer across domains.}
-Verification collapse is measurable in MATH because ground truth is
-unambiguous.
-In open-ended domains---instruction following, summarisation, creative
-writing---$\gt$ is not directly computable, yet the same self-reinforcing
-loop operates.
-A promising direction is to train well-calibrated verifiers in formal
-domains where checking is cheap, then evaluate whether the calibration
-property transfers to adjacent domains without additional ground truth.
-If verification skill generalises even partially, formal-domain training
-could serve as an anchor for self-improvement in settings where no oracle
-exists.
+Future work should instrument the relationship between $\Delta_t$ and
+held-out performance on unseen benchmarks across more training iterations.
 
 % ============================================================
 \section{Conclusion}
