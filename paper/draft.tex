@@ -744,6 +744,17 @@ relative to the 0.320 baseline, and $\bar{\gt}^\text{val}$ trends upward to
 0.50--0.52 versus flat in the baseline, confirming that genuine learning
 accompanies the recalibration.
 
+We note, however, that the intervention conflates two distinct factors: (1)~injecting
+any ground-truth-anchored data into the loop, and (2)~selecting specifically the examples
+where the model was \emph{most overconfident} (high-$\bar{\self}$, wrong answer).
+The 47\% reduction could be driven by factor~(1) alone --- ``ground truth helps'' --- with
+the adversarial selection criterion doing no independent work.
+We isolate these factors in the \textsc{random-negatives} ablation (Section~\ref{sec:ablations}),
+which injects the same volume of gold-solution training data drawn uniformly from wrong
+examples rather than by overconfidence rank ($\theta = 0$).
+If the hard-negative selection is load-bearing, the random-negatives gap should exceed the
+hard-negatives steady state; if factor~(1) suffices, the two should be indistinguishable.
+
 \paragraph{Limitations.}
 Several constraints bound the scope of our conclusions.
 First, hard negatives are drawn from a fixed 400-problem training pool;
@@ -751,7 +762,10 @@ the bank saturates as the model becomes uniformly overconfident on all
 problems in the set (hard\_negs plateau near 62--67 in our runs).
 Larger or dynamically augmented datasets would extend the benefit of injection
 and are a direct avenue for future work.
-Second, we ablate the injection interval ($N \in \{1,3,6\}$) and ratio
+Second, the injection intervention bundles two factors --- ground-truth data
+and adversarial (overconfidence-ranked) selection --- that our main experiment
+does not disentangle; the \textsc{random-negatives} ablation addresses this directly.
+Third, we ablate the injection interval ($N \in \{1,3,6\}$) and ratio
 ($R \in \{25\%, 50\%\}$) only after the supervisor review gate; those results
 will inform optimal hyperparameter selection for the intervention.
 Third, our evaluation domain is MATH L3--5 (and L5 only for the difficulty
