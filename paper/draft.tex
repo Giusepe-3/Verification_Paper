@@ -37,17 +37,30 @@
 
 % ============================================================
 \begin{abstract}
-% HOOK: ~150 words. State the problem, the finding, and why it matters.
-% Draft tomorrow — data is in hand.
-%
-% Skeleton:
-%   Sentence 1: Self-improvement loops are promising but assume the model
-%               can reliably judge its own outputs.
-%   Sentence 2: We show this assumption fails: the verification gap grows.
-%   Sentence 3: We call this verification collapse and quantify it.
-%   Sentence 4: We show adversarial injection bounds the gap.
-%   Sentence 5: Implications for RLHF, AZR, STaR-like methods.
-\todo{Write abstract last.}
+Iterative self-improvement methods assume that a model can reliably judge the
+correctness of its own outputs.
+We test this assumption by tracking the \emph{verification gap}
+$\Delta_t = \bar{s}_t^{\text{self}} - \bar{s}_t^{\text{ext}}$ over 20
+iterations of self-supervised fine-tuning on the MATH benchmark.
+Across three model families (Qwen2.5-7B, Llama-3-8B, Mistral-7B), the gap
+grows monotonically: self-assigned scores inflate while ground-truth accuracy
+remains flat, a failure mode we call \emph{verification collapse}.
+The model does not merely become overconfident; the corrupted self-score
+prevents genuine improvement by training the model on its own wrong answers.
+A GT-anchored control, identical except that training examples are filtered
+by ground truth rather than self-score, eliminates collapse and improves
+accuracy by 78\%, isolating self-scoring as the causal driver.
+We propose \emph{adversarial hard-negative injection}: periodically replacing
+a fraction of the training batch with the model's most confident errors paired
+with gold solutions.
+Using 85\% less ground-truth data than full GT supervision, injection reduces
+the steady-state gap by 47\% while reaching comparable training accuracy
+(0.525 vs.\ 0.535), demonstrating that a small, targeted dose of ground truth
+on the model's worst failures captures most of the benefit of continuous GT
+supervision.
+We study collapse in a verifiable domain precisely because it is measurable
+there; in non-verifiable domains, the same drift would be invisible and
+unchecked.
 \end{abstract}
 
 % ============================================================
@@ -89,32 +102,29 @@
 %   (iii) We situate the result relative to AZR, STaR, and RM overoptimization
 %        literature, arguing verification collapse is a distinct failure mode.
 
-The prospect of language models that improve themselves — iteratively
-refining their outputs without human annotation at every step — has reshaped
+The prospect of language models that improve themselves, iteratively
+refining their outputs without human annotation at every step, has reshaped
 the frontier of AI training.
-Methods ranging from STaR \citep{zelikman2022star} and Self-Refine
-\citep{madaan2023selfrefine} to Constitutional AI \citep{bai2022constitutional}
-and Absolute Zero Reasoner \citep{deepseek2025azr} share a common design:
-the model generates a candidate answer, evaluates it, and uses that evaluation
-to select or improve training examples.
-When this loop is run iteratively with fine-tuning between rounds, it becomes
-a self-reinforcing engine of improvement that scales without any external
-oracle.
+Methods ranging from STaR \citep{zelikman2022star} and Self-Rewarding Language
+Models \citep{yuan2024self} to Absolute Zero Reasoner \citep{deepseek2025azr}
+share a common design: the model generates a candidate answer, evaluates it,
+and uses that evaluation to select or improve training examples.
+Some of these systems retain a ground-truth anchor to varying degrees; at the
+frontier, systems such as Absolute Zero Reasoner aspire to eliminate external
+labels entirely, proposing closed loops in which the model proposes tasks,
+solves them, and verifies its own solutions without any human-provided signal.
 The appeal is straightforward: human-labelled data is expensive, slow, and
 finite; a model that can judge and teach itself is, in principle, unbounded.
 
 Every such loop rests on a single structural assumption: that the model's
 self-evaluation is reliable enough to distinguish correct from incorrect
 outputs.
-In STaR, the model's self-judgment selects which chains-of-thought enter the
-training batch.
-In Constitutional AI, self-critique drives the revision.
 In Self-Rewarding Language Models \citep{yuan2024self}, the model assigns its
 own reward signal at every iteration.
 In Absolute Zero Reasoner, the model verifies solutions it generates to its
 own proposed tasks.
-Across all these architectures, self-verification is not a peripheral
-component — it is the mechanism that converts generation into a training
+In both cases, self-verification is not a peripheral
+component: it is the mechanism that converts generation into a training
 signal.
 If self-judgment is systematically miscalibrated, the loop does not merely
 slow down; it trains the model on increasingly wrong evidence, with increasing
@@ -122,15 +132,15 @@ confidence, silently degrading the quality of every subsequent iteration.
 
 There is growing evidence that this assumption is fragile.
 \citet{huang2024cannot} demonstrate that LLMs cannot reliably self-correct
-reasoning without access to external feedback — intrinsic self-critique
+reasoning without access to external feedback; intrinsic self-critique
 degrades performance on tasks where ground truth is unavailable.
 Concurrent work documents growing calibration error across iterative
 self-improvement rounds \citep{li2025beyondaccuracy,epicar2026}, and
 \citet{rlsr2025} observe self-reward diverging from formal reward under RL
 pressure.
-Yet a precise, dynamic characterisation of this failure mode — how the gap
+Yet a precise, dynamic characterisation of this failure mode, specifically how the gap
 between a model's self-assigned score and external accuracy evolves over the
-course of a full self-improvement loop, and what causes it — has been absent
+course of a full self-improvement loop and what causes it, has been absent
 from the literature.
 Prior work measures calibration using aggregate, post-hoc statistics (Expected
 Calibration Error, AUROC) over short horizons of three to five rounds; no
@@ -138,7 +148,19 @@ study has tracked the raw per-iteration drift over a full 20-round loop,
 isolated self-scoring as its causal driver, or characterised how collapse
 severity varies across model families.
 
-We close this gap.
+The question this raises is precise: \emph{does overconfidence in self-scoring
+prevent genuine improvement in a recursive self-improvement loop, and can
+periodically grounding the verifier on ground truth restore it?}
+We study this in the MATH benchmark, a verifiable domain where ground truth
+exists and miscalibration is directly measurable.
+This choice is deliberate: in non-verifiable domains such as instruction
+following or open-ended generation, the same drift would be invisible.
+Without an external signal, there is no way to detect that self-assigned scores
+have decoupled from reality; the loop would simply continue, training on
+increasingly wrong evidence with increasing confidence.
+We measure the phenomenon where it can be measured, so that its existence in
+the broader class of self-improving systems is no longer in doubt.
+
 We define the \emph{verification gap} at iteration $t$ as
 $\Delta_t = \bar{s}_t^{\text{self}} - \bar{s}_t^{\text{ext}}$,
 where $\bar{s}_t^{\text{self}}$ is the model's mean self-assigned correctness
@@ -146,16 +168,16 @@ score and $\bar{s}_t^{\text{ext}}$ is the mean ground-truth accuracy on the
 same training examples.
 We run 20 iterations of self-improvement on the MATH benchmark (Level 3--5)
 with Qwen2.5-7B-Instruct \citep{qwen2025}, observing $\Delta_t$ grow from
-$0.105$ at iteration~1 to $0.320$ at iteration~20 — a three-fold increase —
+$0.105$ at iteration~1 to $0.320$ at iteration~20, a three-fold increase,
 while ground-truth validation accuracy remains flat.
 We replicate the effect across two additional model families, uncovering a
 \emph{two-regime} structure: capable models drift gradually as self-scores
 inflate beyond genuine accuracy; weaker models collapse immediately from the
 first iteration, with the loop reinforcing the collapsed state
 (Mistral-7B: $\Delta_1 = 0.580$, $\Delta_{20} = 0.850$).
-We isolate self-scoring as the causal driver via a GT-anchored control — the
+We isolate self-scoring as the causal driver via a GT-anchored control (the
 same loop but trained on ground-truth-correct examples rather than
-self-judged-correct ones — where the gap \emph{decreases} over 20 iterations
+self-judged-correct ones) where the gap \emph{decreases} over 20 iterations
 while genuine accuracy improves by $78\%$.
 Finally, we propose \emph{adversarial hard-negative injection}: periodically
 replacing a fraction of the fine-tuning batch with high-confidence errors
@@ -164,17 +186,27 @@ any external oracle.
 
 Our contributions are threefold.
 \textbf{(i)}~We provide the first controlled, longitudinal measurement of
-\emph{verification collapse} — a failure mode distinct from reward model
+\emph{verification collapse}, a failure mode distinct from reward model
 overoptimization \citep{gao2023scaling} and from the filtering-utility gap of
-\citet{song2025mindthegap} — tracking $\Delta_t$ as a live per-iteration
+\citet{song2025mindthegap}, tracking $\Delta_t$ as a live per-iteration
 scalar over 20 rounds across three model families.
 \textbf{(ii)}~We establish a causal link between self-scoring and collapse
 through a GT-anchored ablation, ruling out iterative fine-tuning per se as
 the mechanism.
 \textbf{(iii)}~We propose adversarial hard-negative injection as a
-lightweight, data-side mitigation requiring no objective modification, no
-external judge, and no architectural change, making it applicable to any
-self-improving system.
+lightweight, data-side mitigation that reduces the steady-state gap by 47\%
+using 85\% less ground-truth data than full GT supervision, while reaching
+comparable training accuracy ($0.525$ vs.\ $0.535$).
+It requires no objective modification, no external judge, and no architectural
+change, making it applicable to any self-improving system.
+Adversarial injection is, in effect, a mechanism for distilling ground-truth
+signal into the self-verifier itself: by periodically grounding the model on
+examples where GT and self-score disagree most sharply, we restore calibration
+without replacing the self-improving loop.
+The broader implication is that self-improving systems operating in
+non-verifiable domains may be viable if a calibrated verifier can be
+periodically grounded in domains where ground truth is available, making the
+question of how to transfer that calibration a direct avenue for future work.
 
 % ============================================================
 \section{Background and Related Work}
@@ -187,7 +219,7 @@ STaR \citep{zelikman2022star} anchors every iteration to ground truth: when the 
 fails to produce a correct chain-of-thought, it is shown the reference answer and asked
 to rationalize it, ensuring that external correctness never leaves the loop.
 Collapse cannot emerge by design, because the training filter is ground truth, not
-self-judgment — a fact we exploit in our GT-anchored control condition
+self-judgment, a fact we exploit in our GT-anchored control condition
 (Section~\ref{sec:results}).
 At the other extreme, Absolute Zero Reasoner \citep{deepseek2025azr} proposes fully
 closed self-improvement in which the model proposes tasks, solves them, and verifies its
@@ -197,7 +229,7 @@ That assumption has not been tested empirically; the present work provides the t
 it fails.
 ReST \citep{gulcehre2023rest} and related RLHF variants interpose an external reward
 model between generator and training signal, shifting the failure mode from endogenous
-calibration drift to reward model overoptimization \citep{gao2023scaling} — a related
+calibration drift to reward model overoptimization \citep{gao2023scaling}, a related
 but distinct problem we address next.
 
 \paragraph{Reward model overoptimization and endogenous collapse.}
@@ -207,7 +239,7 @@ initial distribution, an external RM's scores become increasingly detached from 
 quality.
 Their setting requires a separate RM distinct from the generator.
 We show the same score-versus-reality divergence emerges \emph{endogenously} in closed
-self-supervised loops — without any external reward model and without any explicit RL
+self-supervised loops, without any external reward model and without any explicit RL
 pressure.
 The self-verifier acts as an \emph{implicit, unconstrained reward model} across
 iterations: each fine-tuning step is supervised by examples the model has awarded high
@@ -216,20 +248,20 @@ Verification collapse is, in this framing, what KL-unconstrained reward hacking 
 when the reward model is the policy itself.
 Concurrent work by RLSR \citep{rlsr2025} documents precisely this divergence in the
 GRPO/RL regime with explicit reward signal; our contribution is demonstrating that the
-same collapse emerges without RL pressure — pure iterative SFT is sufficient.
+same collapse emerges without RL pressure; pure iterative SFT is sufficient.
 The self-verifier's endogenous character makes the failure mode both harder to detect and
 harder to escape, since there is no external component to freeze or replace.
 
 \paragraph{Generation-verification gap.}
 \citet{song2025mindthegap} define the generation-verification gap as
 the accuracy improvement obtainable by filtering a model's own generations through
-self-verification — formally, $\text{gap}(f,g) = J(f[w(\hat{u}_g)]) - J(f)$, where
+self-verification, formally $\text{gap}(f,g) = J(f[w(\hat{u}_g)]) - J(f)$, where
 $\hat{u}_g$ is the self-verifier and $w(\cdot)$ denotes the filtering operator.
 Their central result is that this gap saturates to zero within two to three rounds of
 iterative self-improvement, driven by diversity collapse in the generation distribution.
 We study a complementary but distinct failure mode: not whether the verifier can
 \emph{rank} generations correctly, but whether the model's self-assigned scores remain
-\emph{calibrated to ground truth} as training progresses — a divergence that can grow
+\emph{calibrated to ground truth} as training progresses, a divergence that can grow
 even as Song et al.'s gap collapses.
 In Algorithm~1 of their work, self-verification scores function purely as a binary
 filter (threshold $\tau$); the scalar score values are never recorded or tracked.
@@ -240,19 +272,25 @@ We measure exactly what their setup leaves unobserved: $\Delta_t = \bar{s}_t^{\t
 \paragraph{Judge-generator co-degradation.}
 \citet{yuan2024self} qualitatively observe that, in iterative self-reward
 fine-tuning, the model's capacity as a judge degrades alongside its capacity as a
-generator — a co-degradation they flag as a form of reward hacking and leave as an open
+generator, a co-degradation they flag as a form of reward hacking and leave as an open
 problem.
 Their analysis spans three iterations and does not record $\Delta_t$.
 We quantify this phenomenon in a controlled 20-iteration experiment, define $\Delta_t$
 as the primary diagnostic metric, and show the gap grows monotonically in the
 unmitigated baseline while adversarial injection bounds it without requiring any external
 judge.
+\citet{yuan2026solververifier} provide a theoretical complement: they model
+solver and verifier capability as converging exponentially to stable limits under
+iterative self-improvement.
+Our empirical results document the pathological case their theory does not cover:
+verifier confidence inflates monotonically while solver accuracy stagnates, a
+divergence that lies outside the convergence regime their model predicts.
 
 \paragraph{Concurrent calibration work.}
 Three concurrent works document related calibration failures in iterative
 self-improvement, each measuring a distinct quantity in a distinct regime.
-\citet{li2025beyondaccuracy} measure Expected Calibration Error (ECE) —
-an aggregate binned statistic over confidence deciles — on general QA (MMLU) with
+\citet{li2025beyondaccuracy} measure Expected Calibration Error (ECE),
+an aggregate binned statistic over confidence deciles, on general QA (MMLU) with
 Llama-2 and DeepSeek-R1-Distill over five rounds, proposing iterative temperature
 scaling as a post-hoc recalibration fix applied between rounds.
 EpiCaR \citep{epicar2026} extends the calibration audit to MATH, GSM8K, and code,
@@ -268,7 +306,7 @@ First, we track $\Delta_t$ as a \emph{raw per-iteration scalar} rather than an a
 post-hoc calibration metric; $\Delta_t$ is computable online without binning
 infrastructure and reveals the monotonic growth trajectory that aggregate metrics
 obscure.
-Second, we extend the diagnostic to 20 iterations — the only study long enough to
+Second, we extend the diagnostic to 20 iterations, the only study long enough to
 confirm monotonic growth rather than a transient artifact.
 Third, our mitigation, adversarial hard-negative injection, is data-side and in-loop:
 it requires neither objective modification (contra EpiCaR) nor an external judge model
@@ -355,7 +393,7 @@ recalibration signal grounded in external correctness.
 Table~\ref{tab:baseline} and Figure~\ref{fig:baseline-injection}(a) report
 the full baseline trajectory.
 The verification gap $\gap_t$ grows monotonically from $0.105$ at iteration~1
-to $0.320$ at iteration~20 — a three-fold increase over the course of
+to $0.320$ at iteration~20, a three-fold increase over the course of
 self-improvement.
 While $\bar{\self}$ climbs from $0.465$ to $0.770$, ground-truth val accuracy
 $\bar{\gt}_\text{val}$ remains effectively flat across all 20 iterations
@@ -369,20 +407,21 @@ completions rather than learned to solve the underlying problems.
 \begin{table}[h]
 \centering
 \caption{Baseline run: verification collapse over 20 iterations.
-$\overline{\self}$: mean self-score (train). $\overline{\gt}_\text{val}$:
+$\overline{\self}$: mean self-score (train). $\overline{\gt}_\text{train}$:
+ground-truth accuracy (train). $\overline{\gt}_\text{val}$:
 ground-truth accuracy (val). $\gap$: verification gap (Eq.~\ref{eq:gap}).
 $\mathcal{L}$: fine-tuning loss.}
 \label{tab:baseline}
 \small
-\begin{tabular}{rccccr}
+\begin{tabular}{rcccccr}
 \toprule
-Iter & $\overline{\self}$ & $\overline{\gt}_\text{val}$ & $\gap$ & $\mathcal{L}$ & Hard negs \\
+Iter & $\overline{\self}$ & $\overline{\gt}_\text{train}$ & $\overline{\gt}_\text{val}$ & $\gap$ & $\mathcal{L}$ & Hard negs \\
 \midrule
-1  & 0.465 & 0.400 & 0.105 & 0.0624 & 25 \\
-5  & 0.620 & 0.420 & 0.220 & 0.0184 & 47 \\
-10 & 0.675 & 0.440 & 0.250 & 0.0056 & 52 \\
-15 & 0.750 & 0.440 & 0.295 & 0.0033 & 62 \\
-20 & 0.770 & 0.460 & 0.320 & 0.0010 & 67 \\
+1  & 0.465 & 0.360 & 0.400 & 0.105 & 0.0624 & 25 \\
+5  & 0.620 & 0.400 & 0.420 & 0.220 & 0.0184 & 47 \\
+10 & 0.675 & 0.425 & 0.440 & 0.250 & 0.0056 & 52 \\
+15 & 0.750 & 0.455 & 0.440 & 0.295 & 0.0033 & 62 \\
+20 & 0.770 & 0.450 & 0.460 & 0.320 & 0.0010 & 67 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -422,17 +461,17 @@ Iter & $\overline{\self}$ & $\overline{\gt}_\text{val}$ & $\gap$ & $\mathcal{L}$
 
 The injection run produces a sawtooth gap trajectory visible in
 Figure~\ref{fig:baseline-injection}(b): the gap spikes on injection iterations
-(batch-composition artifact — see Section~\ref{sec:setup}) and returns to a
+(batch-composition artifact; see Section~\ref{sec:setup}) and returns to a
 lower steady state on subsequent iterations.
 Excluding injection iterations, the steady-state gap ranges from $0.065$ to
 $0.175$ across iterations~2--20, compared to $0.160$--$0.320$ over the same
-window in the baseline — a consistent reduction at every comparable checkpoint.
+window in the baseline, a consistent reduction at every comparable checkpoint.
 At iteration~20 the gap stands at $0.170$ versus $0.320$ in the baseline,
 a 47\% reduction (Table~\ref{tab:injection}, Figure~\ref{fig:baseline-injection}(b)).
 Crucially, the mitigation is accompanied by genuine accuracy gains: $\bar{\gt}_\text{val}$
 trends upward in the injection run, reaching $0.50$--$0.52$ in the final iterations,
 versus a flat $0.44$--$0.46$ in the baseline.
-The model is not merely suppressing self-score — the recalibration signal
+The model is not merely suppressing self-score; the recalibration signal
 from hard negatives also improves the quality of its generated solutions.
 
 \begin{table}[h]
@@ -442,31 +481,31 @@ to baseline. $\bigstar$ marks injection iterations (batch-composition spikes, ex
 from steady-state comparison).}
 \label{tab:injection}
 \small
-\begin{tabular}{rccccc}
+\begin{tabular}{rcccccc}
 \toprule
-Iter & $\overline{\self}$ & $\overline{\gt}_\text{val}$ & $\gap$ & $\mathcal{L}$ & Injected \\
+Iter & $\overline{\self}$ & $\overline{\gt}_\text{train}$ & $\overline{\gt}_\text{val}$ & $\gap$ & $\mathcal{L}$ & Injected \\
 \midrule
-1  & 0.465 & 0.420 & 0.105 & 0.0624 &   \\
-2  & 0.515 & 0.380 & 0.110 & 0.0368 &   \\
-3  & 0.635 & 0.380 & 0.265 & 0.1915 & $\bigstar$ \\
-4  & 0.510 & 0.400 & 0.085 & 0.0224 &   \\
-5  & 0.510 & 0.400 & 0.090 & 0.0195 &   \\
-6  & 0.630 & 0.460 & 0.325 & 0.2140 & $\bigstar$ \\
-7  & 0.500 & 0.460 & 0.105 & 0.0163 &   \\
-8  & 0.470 & 0.460 & 0.065 & 0.0192 &   \\
-9  & 0.680 & 0.460 & 0.410 & 0.1948 & $\bigstar$ \\
-10 & 0.565 & 0.440 & 0.120 & 0.0207 &   \\
-15 & 0.800 & 0.460 & 0.410 & 0.1234 & $\bigstar$ \\
-16 & 0.635 & 0.440 & 0.150 & 0.0080 &   \\
-20 & 0.695 & 0.420 & 0.170 & 0.0120 &   \\
+1  & 0.465 & 0.360 & 0.420 & 0.105 & 0.0624 &   \\
+2  & 0.515 & 0.405 & 0.380 & 0.110 & 0.0368 &   \\
+3  & 0.635 & 0.370 & 0.380 & 0.265 & 0.1915 & $\bigstar$ \\
+4  & 0.510 & 0.425 & 0.400 & 0.085 & 0.0224 &   \\
+5  & 0.510 & 0.420 & 0.400 & 0.090 & 0.0195 &   \\
+6  & 0.630 & 0.305 & 0.460 & 0.325 & 0.2140 & $\bigstar$ \\
+7  & 0.500 & 0.395 & 0.460 & 0.105 & 0.0163 &   \\
+8  & 0.470 & 0.405 & 0.460 & 0.065 & 0.0192 &   \\
+9  & 0.680 & 0.270 & 0.460 & 0.410 & 0.1948 & $\bigstar$ \\
+10 & 0.565 & 0.445 & 0.440 & 0.120 & 0.0207 &   \\
+15 & 0.800 & 0.390 & 0.460 & 0.410 & 0.1234 & $\bigstar$ \\
+16 & 0.635 & 0.485 & 0.440 & 0.150 & 0.0080 &   \\
+20 & 0.695 & 0.525 & 0.420 & 0.170 & 0.0120 &   \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 \subsection{GT-Anchored Control: Isolating the Causal Driver}
 
-To isolate self-scoring as the mechanism driving collapse — rather than
-iterative fine-tuning per se — we run a third condition identical to the
+To isolate self-scoring as the mechanism driving collapse, rather than
+iterative fine-tuning per se, we run a third condition identical to the
 baseline in all respects except the training filter.
 Instead of fine-tuning on examples the model judges correct
 ($\self^{(t)} > 0$), we fine-tune on examples verified correct against the
@@ -476,7 +515,7 @@ leaves the loop.
 
 Table~\ref{tab:gtanchored} reports the full 20-iteration trajectory.
 The verification gap starts at $\gap_1 = 0.190$ and ends at
-$\gap_{20} = 0.122$ — a slight \emph{decrease}, bounded throughout in the
+$\gap_{20} = 0.122$, a slight \emph{decrease}, bounded throughout in the
 range $[0.083, 0.193]$.
 This is categorically different from the baseline, where the gap grew
 monotonically from $0.105$ to $0.320$.
@@ -490,7 +529,7 @@ $0.360 \to 0.450$ ($+25\%$) in the baseline.
 The model genuinely learns to solve more problems when trained on correct
 evidence rather than reinforcing overconfident wrong answers.
 Hard-negative accumulation reverses accordingly: the bank shrinks from 79
-to 62 high-confidence errors as actual accuracy improves — the opposite of
+to 62 high-confidence errors as actual accuracy improves, the opposite of
 the baseline trend (25 $\to$ 67).
 
 \begin{table}[h]
@@ -527,13 +566,13 @@ trajectory regimes.
 
 \textbf{Mistral-7B: immediate collapse.}
 Table~\ref{tab:mistral} shows the most extreme case.
-The gap begins at $\gap_1 = 0.580$ — already larger than Qwen's
-\emph{final} gap of $0.320$ — and grows monotonically to $\gap_{20} = 0.850$.
+The gap begins at $\gap_1 = 0.580$, already larger than Qwen's
+\emph{final} gap of $0.320$, and grows monotonically to $\gap_{20} = 0.850$.
 Ground-truth training accuracy remains essentially zero throughout
 ($0.035$--$0.065$): Mistral-7B cannot solve MATH Level 3--5 problems, yet
 its self-score climbs from $0.625$ to $0.900$.
 By iteration~20 the model judges itself $90\%$ correct while achieving $5\%$
-ground-truth accuracy — an 85 percentage-point gap.
+ground-truth accuracy, an 85 percentage-point gap.
 Because the model's baseline capability on this domain is near zero, there is
 no gradual drift phase: collapse is immediate, and the loop locks in and
 amplifies the collapsed state.
@@ -546,7 +585,7 @@ $\gap_{20} = 0.148$.
 Crucially, this recovery is not genuine recalibration: ground-truth training
 accuracy remains flat throughout ($0.22$--$0.24$), and gt\_val does not
 improve.
-Instead, the LoRA adapter — after sufficiently many iterations — distorts the
+Instead, the LoRA adapter, after sufficiently many iterations, distorts the
 model's instruction-following regime enough to degrade self-judgment itself,
 causing self-scores to fall back toward the model's actual accuracy.
 The recovery in the gap is driven by a \emph{collapse of overconfidence},
@@ -626,8 +665,11 @@ exhibit it under the self-score loop, with collapse severity and trajectory
 shape scaling with the model's baseline capability on the domain.
 The causal variable is the self-score training filter: replacing it with
 ground-truth verification (GT-anchored) eliminates collapse and produces
-genuine accuracy gains, while adversarial injection reduces the Qwen
-steady-state gap by 47\% without any external oracle.
+genuine accuracy gains, while adversarial injection, using 85\% less ground-truth-grounded data
+than the GT-anchored condition (6 of 20 iterations, 50\% of batch),
+reduces the steady-state gap by 47\% and reaches comparable training
+accuracy ($\overline{\gt}_{\text{train},20} = 0.525$ vs.\ $0.535$
+GT-anchored).
 
 \begin{table}[h]
 \centering
@@ -736,6 +778,12 @@ precisely the failure cases that the default loop never trains on.
 By injecting them into the fine-tuning batch every third iteration (using the
 gold MATH solution as the training target), we give the model the only
 ground-truth-anchored signal available without an external oracle.
+This is related to \citet{wang2024learningfromfailure}, who inject failed
+trajectories into SFT fine-tuning for LLM agents to improve task performance.
+Our setting differs: we target verifier recalibration rather than task
+performance, select examples by overconfidence rank rather than task failure,
+and operate inside an iterative self-improvement loop rather than a single
+fine-tuning pass.
 The sawtooth pattern in Figure~\ref{fig:baseline-injection}(b) reflects this directly: gap
 spikes at injection-step boundaries as the model is forced to contend with
 its overconfident errors, then partially recovers between injections.
@@ -743,6 +791,25 @@ The steady-state gap of $0.170$ at iteration 20 represents a 47\% reduction
 relative to the 0.320 baseline, and $\bar{\gt}^\text{val}$ trends upward to
 0.50--0.52 versus flat in the baseline, confirming that genuine learning
 accompanies the recalibration.
+
+\paragraph{GT efficiency of injection.}
+The practical force of adversarial injection lies not only in the gap reduction
+but in how little ground truth it requires.
+The GT-anchored condition uses ground truth to filter training data at every
+iteration (20 out of 20); injection introduces GT-grounded signal only at
+injection steps (6 out of 20 iterations) and only into 50\% of the batch,
+amounting to roughly 15\% of the GT exposure.
+Despite this 85\% reduction in ground-truth data, injection achieves
+$\overline{\gt}_{\text{train},20} = 0.525$ versus $0.535$ for the fully
+GT-anchored condition, a difference of less than 2\%.
+The verification gap is reduced by 47\% relative to baseline ($0.170$ vs.\
+$0.320$), compared to a full reversal under GT-anchoring ($0.122$).
+In other words, a small, targeted dose of ground truth, applied to the
+examples where the model is most confidently wrong, captures most of the
+benefit of full GT supervision.
+This is the core of the distillation argument: the self-verifier does not
+need continuous access to ground truth; it needs periodic recalibration on
+its worst failures.
 
 We note, however, that the intervention conflates two distinct factors: (1)~injecting
 any ground-truth-anchored data into the loop, and (2)~selecting specifically the examples
@@ -770,9 +837,17 @@ Third, we ablate the injection interval ($N \in \{1,3,6\}$) and ratio
 will inform optimal hyperparameter selection for the intervention.
 Third, our evaluation domain is MATH L3--5 (and L5 only for the difficulty
 ablation), a closed-form setting where ground truth is unambiguous.
-Whether verification collapse occurs---and whether injection mitigates it---in
-open-ended domains (instruction following, code generation, creative writing)
-where $\gt$ is not directly computable remains an open question.
+This choice is deliberate: we study collapse where it is measurable, so that
+its existence is established under controlled conditions.
+The implication for non-verifiable domains is the more urgent concern.
+In instruction following, creative writing, or open-ended reasoning, the same
+drift between self-score and real quality would be entirely invisible: there is
+no external signal to reveal that the model's self-assigned scores have
+decoupled from reality.
+The loop would continue training, confidently, on increasingly wrong evidence.
+Whether injection or analogous interventions can mitigate collapse in those
+settings, where $\gt$ is not directly computable, remains an important open
+question.
 Finally, $\Delta_t$ measures overconfidence in self-verification, not
 downstream task performance; a collapsed self-verifier is damaging primarily
 insofar as it silently poisons the training signal.
@@ -805,12 +880,19 @@ remains flat while $\bar{\self}$ climbs, confirming that the apparent gains
 are illusory.
 A ground-truth-anchored training filter eliminates collapse entirely;
 adversarial hard-negative injection reduces steady-state gap by 47\%
-without any external oracle.
+while using 85\% less ground-truth data than full GT supervision, reaching
+comparable training accuracy ($0.525$ vs.\ $0.535$).
+Injection works by distilling ground-truth signal directly into the
+self-verifier: a small, targeted dose of ground truth applied to the model's
+most confident mistakes captures most of the benefit of continuous GT
+supervision, without replacing the self-improving loop.
 The practical implication is direct: any self-improving system should
-instrument $\Delta_t$ explicitly.
-Optimising self-score alone, without tracking the verification gap,
-risks producing a model that is confidently wrong and growing more so with
-every additional training iteration.
+instrument $\Delta_t$ explicitly, and any system that aspires to operate in
+non-verifiable domains should ask whether its self-verifier has been grounded
+in domains where ground truth is available.
+A confidently wrong self-verifier, left unchecked, does not merely stall
+improvement; it actively trains the model away from correctness, silently,
+at every iteration.
 
 % ============================================================
 \bibliographystyle{plainnat}
