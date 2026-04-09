@@ -19,14 +19,14 @@ fi
 
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
+pip install -r requirements.txt -q
+pip install flash-attn --no-build-isolation --prefer-binary -q
+
 # HF auth — required for Llama-3 configs, harmless otherwise
 if [ -n "$HF_TOKEN" ]; then
   export HUGGINGFACE_HUB_TOKEN=$HF_TOKEN
   python3 -c "from huggingface_hub import login; login(token='$HF_TOKEN')"
 fi
-
-pip install -r requirements.txt -q
-pip install flash-attn --no-build-isolation --prefer-binary -q
 
 mkdir -p logs data
 
