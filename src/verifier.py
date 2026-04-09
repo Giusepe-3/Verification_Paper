@@ -112,7 +112,6 @@ class ModelVerifier:
             trust_remote_code=True,
             dtype=torch.bfloat16,
             attn_implementation=_ATTN_IMPL,
-            low_cpu_mem_usage=True,
         )
         self.model = self.model.to(self.device)
         # use_cache must be False when gradient checkpointing is on; True otherwise
