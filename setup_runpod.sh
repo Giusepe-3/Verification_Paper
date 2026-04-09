@@ -20,7 +20,9 @@ fi
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
 pip install -r requirements.txt -q
-pip install flash-attn --no-build-isolation --prefer-binary -q
+# flash-attn pre-built binaries often segfault on mismatched CUDA/PyTorch.
+# verifier.py falls back to sdpa automatically when flash-attn is absent.
+pip uninstall flash-attn -y 2>/dev/null || true
 
 # HF auth — required for Llama-3 configs, harmless otherwise
 if [ -n "$HF_TOKEN" ]; then
