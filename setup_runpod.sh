@@ -20,12 +20,28 @@ fi
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
 # RunPod pods ship with a CUDA-matched PyTorch. Reinstalling torch via pip
-# replaces it with a version that may not match the pod's CUDA driver → segfault.
-# Skip torch and flash-attn; verifier.py falls back to sdpa automatically.
-# Skip torch (pod ships CUDA-matched), flash-attn (segfaults), bitsandbytes
-# (not needed for load_in_4bit: false configs; can segfault on CUDA mismatch).
-grep -vE '^(torch|flash-attn|bitsandbytes)' requirements.txt | pip install -r /dev/stdin -q
+# (even as a transitive dep of transformers/peft/accelerate) overwrites it with
+# an incompatible build → segfault on first CUDA call.
+# Fix: pin torch to the pod's pre-installed version as a constraint so pip
+# cannot upgrade it, even transitively.
+TORCH_VER=$(python3 -c "import torch; print(torch.__version__)")
+echo "Pod torch: $TORCH_VER (pinned)"
+echo "torch==$TORCH_VER" > /tmp/torch_pin.txt
+
+grep -vE '^(torch|flash-attn|bitsandbytes)' requirements.txt \
+  | pip install -r /dev/stdin -q -c /tmp/torch_pin.txt
 pip uninstall flash-attn bitsandbytes -y 2>/dev/null || true
+
+# Confirm torch version didn't change and CUDA is usable before starting experiment
+python3 - <<'PYCHECK'
+import torch, sys
+print(f"Post-install torch: {torch.__version__}")
+if not torch.cuda.is_available():
+    print("ERROR: CUDA not available — check driver/torch mismatch")
+    sys.exit(1)
+t = torch.ones(1, device="cuda", dtype=torch.bfloat16)
+print(f"CUDA bf16 OK on {torch.cuda.get_device_name(0)}")
+PYCHECK
 
 # HF auth — required for Llama-3 configs, harmless otherwise
 if [ -n "$HF_TOKEN" ]; then
