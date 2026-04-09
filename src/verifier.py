@@ -109,11 +109,12 @@ class ModelVerifier:
         self.model = AutoModelForCausalLM.from_pretrained(
             mcfg["name"],
             quantization_config=bnb_config,
-            device_map={"": 0},
             trust_remote_code=True,
-            torch_dtype=torch.bfloat16,
+            dtype=torch.bfloat16,
             attn_implementation=_ATTN_IMPL,
+            low_cpu_mem_usage=True,
         )
+        self.model = self.model.to(self.device)
         # use_cache must be False when gradient checkpointing is on; True otherwise
         # (gives a small forward-pass speedup during teacher-forced training)
         use_gc = self.config.get("training", {}).get("gradient_checkpointing", True)
