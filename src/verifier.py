@@ -72,7 +72,11 @@ class ModelVerifier:
         torch.backends.cudnn.allow_tf32 = True
 
         self._load_model()
-        self._attach_lora()
+        init_ckpt = config.get("model", {}).get("init_checkpoint")
+        if init_ckpt:
+            self._load_checkpoint_as_adapter(init_ckpt)
+        else:
+            self._attach_lora()
         self._build_optimizer()
 
     # ------------------------------------------------------------------
@@ -115,6 +119,24 @@ class ModelVerifier:
         # (gives a small forward-pass speedup during teacher-forced training)
         use_gc = self.config.get("training", {}).get("gradient_checkpointing", True)
         self.model.config.use_cache = not use_gc
+
+    def _load_checkpoint_as_adapter(self, path: str) -> None:
+        """Load a saved LoRA adapter as the starting (trainable) adapter.
+
+        Used by the recovery experiment: starts from the collapsed iter-20
+        checkpoint instead of a fresh adapter, so injection runs from an
+        already-collapsed state.
+        """
+        from peft import PeftModel
+        if self.config.get("training", {}).get("gradient_checkpointing", True):
+            self.model.gradient_checkpointing_enable(
+                gradient_checkpointing_kwargs={"use_reentrant": False}
+            )
+        self.model = PeftModel.from_pretrained(
+            self.model, str(Path(path)), is_trainable=True
+        )
+        self.model.print_trainable_parameters()
+        print(f"Initialised from collapsed checkpoint ← {path}")
 
     def _attach_lora(self) -> None:
         lcfg = self.config["lora"]
