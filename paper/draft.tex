@@ -73,7 +73,7 @@ unchecked.
 % while their actual test scores stay flat. That is verification collapse.
 %
 % Paragraph 1 — motivation:
-%   Iterative self-improvement (STaR, AZR, RLHF) relies on the model's
+%   Iterative self-improvement (STaR, SRLM, RLHF) relies on the model's
 %   ability to evaluate its own outputs. If the judge and the generator are
 %   the same model, and the model is fine-tuned on examples it judges
 %   correct, any systematic bias in self-evaluation compounds over iterations.
@@ -99,43 +99,48 @@ unchecked.
 %        quantitative measurement of the phenomenon.
 %   (ii) We introduce adversarial hard-negative injection as a lightweight
 %        mitigation requiring no external oracle.
-%   (iii) We situate the result relative to AZR, STaR, and RM overoptimization
+%   (iii) We situate the result relative to SRLM, STaR, and RM overoptimization
 %        literature, arguing verification collapse is a distinct failure mode.
 
 The prospect of language models that improve themselves, iteratively
 refining their outputs without human annotation at every step, has reshaped
 the frontier of AI training.
 Methods ranging from STaR \citep{zelikman2022star} and Self-Rewarding Language
-Models \citep{yuan2024self} to Absolute Zero Reasoner \citep{deepseek2025azr}
+Models \citep{yuan2024self} to Absolute Zero Reasoner \citep{zhao2025azr}
 share a common design: the model generates a candidate answer, evaluates it,
 and uses that evaluation to select or improve training examples.
-Some of these systems retain a ground-truth anchor to varying degrees; at the
-frontier, systems such as Absolute Zero Reasoner aspire to eliminate external
-labels entirely, proposing closed loops in which the model proposes tasks,
-solves them, and verifies its own solutions without any human-provided signal.
-The appeal is straightforward: human-labelled data is expensive, slow, and
-finite; a model that can judge and teach itself is, in principle, unbounded.
+Some of these systems retain a ground-truth anchor to varying degrees: STaR
+filters on ground-truth correctness, and AZR delegates verification to a code
+executor.
+But Self-Rewarding Language Models represent the most closed case: the model
+assigns its own reward signal at every iteration, with no per-example
+ground-truth label during self-improvement.
+The appeal of such closed loops is straightforward: human-labelled data is
+expensive, slow, and finite; a model that can judge and teach itself is, in
+principle, unbounded.
 
 Every such loop rests on a single structural assumption: that the model's
 self-evaluation is reliable enough to distinguish correct from incorrect
 outputs.
 In Self-Rewarding Language Models \citep{yuan2024self}, the model assigns its
-own reward signal at every iteration.
-In Absolute Zero Reasoner, the model verifies solutions it generates to its
-own proposed tasks.
-In both cases, self-verification is not a peripheral
-component: it is the mechanism that converts generation into a training
-signal.
+own reward signal at every iteration; no external correctness signal enters the
+self-improvement loop.
+In iterative STaR variants, the model generates rationales that are filtered by
+ground truth.
+Where the anchor is the model's own judgment rather than an external signal,
+self-verification is not a peripheral component: it is the mechanism that
+converts generation into a training signal.
 If self-judgment is systematically miscalibrated, the loop does not merely
 slow down; it trains the model on increasingly wrong evidence, with increasing
 confidence, silently degrading the quality of every subsequent iteration.
 
 There is growing evidence that this assumption is fragile.
 \citet{huang2024cannot} demonstrate that LLMs cannot reliably self-correct
-reasoning without access to external feedback; intrinsic self-critique
-degrades performance on tasks where ground truth is unavailable.
+reasoning errors without an external oracle: absent ground-truth feedback,
+models revise correct answers as readily as incorrect ones, causing net
+performance degradation.
 Concurrent work documents growing calibration error across iterative
-self-improvement rounds \citep{li2025beyondaccuracy,epicar2026}, and
+self-improvement rounds \citep{huang2025beyondaccuracy,epicar2026}, and
 \citet{rlsr2025} observe self-reward diverging from formal reward under RL
 pressure.
 Yet a precise, dynamic characterisation of this failure mode, specifically how the gap
@@ -143,7 +148,7 @@ between a model's self-assigned score and external accuracy evolves over the
 course of a full self-improvement loop and what causes it, has been absent
 from the literature.
 Prior work measures calibration using aggregate, post-hoc statistics (Expected
-Calibration Error, AUROC) over short horizons of three to five rounds; no
+Calibration Error, AUROC, Brier Score) over short horizons of three to five rounds; no
 study has tracked the raw per-iteration drift over a full 20-round loop,
 isolated self-scoring as its causal driver, or characterised how collapse
 severity varies across model families.
@@ -185,11 +190,11 @@ trained on gold solutions, reducing the steady-state gap by $47\%$ without
 any external oracle.
 
 Our contributions are threefold.
-\textbf{(i)}~We provide the first controlled, longitudinal measurement of
-\emph{verification collapse}, a failure mode distinct from reward model
+\textbf{(i)}~We provide the first measurement of \emph{verification collapse}
+tracking $\Delta_t$ as a raw per-iteration scalar over a full 20-round horizon
+with a causal control condition---a failure mode distinct from reward model
 overoptimization \citep{gao2023scaling} and from the filtering-utility gap of
-\citet{song2025mindthegap}, tracking $\Delta_t$ as a live per-iteration
-scalar over 20 rounds across three model families.
+\citet{song2025mindthegap}---across three model families.
 \textbf{(ii)}~We establish a causal link between self-scoring and collapse
 through a GT-anchored ablation, ruling out iterative fine-tuning per se as
 the mechanism.
@@ -221,12 +226,13 @@ to rationalize it, ensuring that external correctness never leaves the loop.
 Collapse cannot emerge by design, because the training filter is ground truth, not
 self-judgment, a fact we exploit in our GT-anchored control condition
 (Section~\ref{sec:results}).
-At the other extreme, Absolute Zero Reasoner \citep{deepseek2025azr} proposes fully
-closed self-improvement in which the model proposes tasks, solves them, and verifies its
-own solutions, implicitly assuming that self-verification remains calibrated across
-training.
-That assumption has not been tested empirically; the present work provides the test, and
-it fails.
+Absolute Zero Reasoner \citep{zhao2025azr} eliminates human-curated data: the model
+proposes tasks, solves them, and delegates verification to a code executor, an external
+programmatic signal that keeps the loop grounded in domains where execution is available.
+In domains without such an anchor, for instance open-ended reasoning or instruction
+following, the loop must rely on the model's own judgment, and whether that judgment
+remains calibrated across training has not been tested empirically; the present work
+provides the test, and it fails.
 ReST \citep{gulcehre2023rest} and related RLHF variants interpose an external reward
 model between generator and training signal, shifting the failure mode from endogenous
 calibration drift to reward model overoptimization \citep{gao2023scaling}, a related
@@ -258,16 +264,20 @@ the accuracy improvement obtainable by filtering a model's own generations throu
 self-verification, formally $\text{gap}(f,g) = J(f[w(\hat{u}_g)]) - J(f)$, where
 $\hat{u}_g$ is the self-verifier and $w(\cdot)$ denotes the filtering operator.
 Their central result is that this gap saturates to zero within two to three rounds of
-iterative self-improvement, driven by diversity collapse in the generation distribution.
+iterative self-improvement, potentially driven by decreased effective diversity in the
+generation distribution.
 We study a complementary but distinct failure mode: not whether the verifier can
 \emph{rank} generations correctly, but whether the model's self-assigned scores remain
 \emph{calibrated to ground truth} as training progresses, a divergence that can grow
 even as Song et al.'s gap collapses.
-In Algorithm~1 of their work, self-verification scores function purely as a binary
-filter (threshold $\tau$); the scalar score values are never recorded or tracked.
-A model that grows monotonically overconfident across all 20 iterations would be
-undetectable in their setup.
-We measure exactly what their setup leaves unobserved: $\Delta_t = \bar{s}_t^{\text{self}} - \bar{s}_t^{\text{ext}}$.
+Song et al.\ track the GV-Gap, a derived quantity of verification scores, at every
+iteration, but this measures whether verification improves \emph{filtering utility}, not
+whether raw self-assigned scores remain calibrated to ground truth.
+A model that grows monotonically overconfident across all 20 iterations could be
+consistent with a GV-Gap of zero.
+We measure the complementary quantity their setup does not capture:
+$\Delta_t = \bar{s}_t^{\text{self}} - \bar{s}_t^{\text{ext}}$, the raw calibration
+drift of the self-verifier.
 
 \paragraph{Judge-generator co-degradation.}
 \citet{yuan2024self} qualitatively observe that, in iterative self-reward
@@ -289,7 +299,7 @@ divergence that lies outside the convergence regime their model predicts.
 \paragraph{Concurrent calibration work.}
 Three concurrent works document related calibration failures in iterative
 self-improvement, each measuring a distinct quantity in a distinct regime.
-\citet{li2025beyondaccuracy} measure Expected Calibration Error (ECE),
+\citet{huang2025beyondaccuracy} (\emph{Beyond Accuracy}) measure Expected Calibration Error (ECE),
 an aggregate binned statistic over confidence deciles, on general QA (MMLU) with
 Llama-2 and DeepSeek-R1-Distill over five rounds, proposing iterative temperature
 scaling as a post-hoc recalibration fix applied between rounds.
@@ -901,7 +911,7 @@ at every iteration.
 % ---- placeholder refs (move to refs.bib) ----
 % @article{zelikman2022star,...}
 % @article{yuan2024self,...}
-% @article{deepseek2025azr,...}
+% @article{zhao2025azr,...}  % Absolute Zero Reasoner — Zhao et al. (Tsinghua/BIGAI/Penn State), NeurIPS 2025
 % @article{hendrycks2021math,...}
 % @article{qwen2025,...}
 % @article{dao2023flashattention2,...}

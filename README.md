@@ -16,9 +16,11 @@ We further show that **adversarial hard-negative injection** — periodically re
 
 ---
 
-## Core Result (Baseline)
+## Core Results
 
-A 20-iteration run on **Qwen2.5-7B-Instruct** (BF16, H100 SXM, MATH Level 3–5) confirms a clean, unambiguous verification collapse signal:
+### Baseline — Qwen2.5-7B (gradual monotonic collapse)
+
+20-iteration run on **Qwen2.5-7B-Instruct** (BF16, H100 SXM, MATH Level 3–5):
 
 | Iteration | Self-Score | GT Val Accuracy | Gap |
 |:---------:|:----------:|:---------------:|:---:|
@@ -28,37 +30,54 @@ A 20-iteration run on **Qwen2.5-7B-Instruct** (BF16, H100 SXM, MATH Level 3–5)
 | 15 | 0.750 | 0.440 | 0.295 |
 | 20 | 0.770 | 0.460 | **0.320** |
 
-- **Gap grew 3× over 20 iterations** (0.105 → 0.320)
-- **GT validation accuracy: flat** (oscillates 0.36–0.46, no trend)
-- **Self-score: monotonically increasing** (0.465 → 0.770)
-- **Training loss near-zero by iteration 10** — model memorises self-judged-correct completions, not correct reasoning
-- **Hard-negative count grew 25 → 67** — the model accumulates high-confidence errors as training progresses
+Gap grew **3× over 20 iterations**. GT validation accuracy flat. Training loss near-zero by iter 10.
 
----
+### Injection — Qwen2.5-7B (bounded gap)
 
-## The Paper in Two Figures
+Same setup with adversarial hard-negative injection every 3 iterations:
 
-1. **Diverging curves:** Self-score and GT accuracy plotted over 20 iterations. The gap opens monotonically — the signature of verification collapse.
-2. **Bounded gap:** Same setup with adversarial injection every 3 iterations. The gap grows more slowly or plateaus — the injection forces the verifier to recalibrate.
+- Steady-state gap: **~0.170 at iter 20** (−47% vs baseline)
+- GT val accuracy trends upward to 0.50–0.52 (vs flat 0.38–0.46 in baseline)
+
+### GT-Anchored Control — Qwen2.5-7B (no collapse)
+
+Same loop but fine-tuning filtered on ground-truth correctness instead of self-score:
+
+- Gap **decreases** from 0.190 to 0.122 over 20 iterations
+- GT train accuracy improves **+78%** (0.300 → 0.535)
+- Proves self-scoring is the causal driver of collapse, not iterative fine-tuning per se
+
+### Cross-Model Results
+
+| Model | Regime | Gap at iter 1 | Gap at iter 20 |
+|---|---|---|---|
+| Qwen2.5-7B | Gradual monotonic | 0.105 | 0.320 |
+| Llama-3-8B | Transient (peak iter 13, partial recovery) | 0.058 | 0.148 |
+| Mistral-7B | Immediate lock-in | 0.580 | 0.850 |
+
+Collapse is universal across model families. Severity scales inversely with baseline capability on the domain.
 
 ---
 
 ## Method
 
-**Domain:** MATH benchmark (Level 3–5), 250 problems, cached at `data/math_subset.json`
+**Domain:** MATH benchmark (Level 3–5), `EleutherAI/hendrycks_math`
 
-**Model:** Qwen2.5-7B-Instruct, BF16, Flash Attention 2, QLoRA (r=16), greedy decoding
+**Models:** Qwen2.5-7B-Instruct (primary), Llama-3-8B-Instruct, Mistral-7B-Instruct-v0.3
+
+**Training:** BF16, Flash Attention 2, QLoRA (r=16, α=32, all-linear, no DoRA), greedy decoding
 
 **Iterative loop:**
 
 ```
 for t = 1, 2, ..., T:
     1. Generate solutions for N training problems
-    2. Dual-score: self-score (model judges own answer) + GT score (exact match)
-    3. Fine-tune on problems the model judges correct (self_score > 0)
-    4. Evaluate GT accuracy on held-out validation set
-    5. [Injection variant] Every 3 iterations: inject 50% hard negatives
-       (high-confidence-wrong examples from previous iterations)
+    2. Self-score: model judges own answer (yes/no) without reference
+    3. GT-score: extract answer, compare to reference
+    4. Fine-tune on problems the model judges correct (self_score > 0)
+    5. Evaluate GT accuracy on held-out validation set
+    6. [Injection variant] Every N iters: inject X% hard negatives
+       (high-confidence-wrong examples trained toward gold solution)
 ```
 
 **Key metrics per iteration:**
@@ -68,7 +87,7 @@ for t = 1, 2, ..., T:
 | `self_score_mean` | Fraction judged correct by model (train batch) |
 | `gt_score_train` | Fraction actually correct (train batch, ground truth) |
 | `gt_score_val` | Fraction actually correct (held-out val, ground truth) |
-| `gap` | `self_score_mean − gt_score_train` — should grow monotonically |
+| `gap` | `self_score_mean − gt_score_train` — the verification gap Δ_t |
 | `loss` | Fine-tuning cross-entropy |
 | `num_hard_negatives` | High-confidence-wrong examples accumulated |
 
@@ -78,11 +97,14 @@ for t = 1, 2, ..., T:
 
 | Work | Relation |
 |------|----------|
-| **SRLM** (Yuan et al. 2024) | Qualitative observation of judge-generator collapse. We quantify and operationalise it. |
-| **STaR** (Zelikman et al. 2022) | Ground-truth-anchored baseline — no collapse by design. A useful upper-bound contrast. |
-| **AZR** (NeurIPS 2025) | Assumes self-verification remains calibrated. We empirically test and falsify that assumption. |
-| **Gao et al. 2023** (RM overoptimization) | Reward model scores diverge from GT under optimisation pressure. We show the same emerges endogenously in self-supervised loops. |
-| **Mind the Gap** (ICLR 2025) | Measures generation–verification gap as a function of pretraining compute (static). We measure *dynamic drift* during self-improvement. |
+| **SRLM** (Yuan et al. 2024) | Qualitative observation of judge-generator collapse. We quantify it over 20 iterations and propose a mitigation. |
+| **STaR** (Zelikman et al. 2022) | Ground-truth-anchored — no collapse by design. We use this as our GT-anchored control condition. |
+| **AZR** (Zhao et al., NeurIPS 2025) | Eliminates human labels but delegates verification to a code executor. Externally grounded. Our collapse findings apply to domains without such an anchor. |
+| **Mind the Gap** (Song et al., ICLR 2025) | Measures filtering utility of self-verification (GV-Gap). We measure calibration drift (Δ_t). Orthogonal quantities — GV-Gap → 0 and Δ_t → large can coexist. |
+| **Beyond Accuracy** (Li et al. 2025) | Measures ECE on MMLU over 5 rounds. We measure Δ_t on MATH over 20 rounds. Different metric, domain, duration, and fix. |
+| **EpiCaR** (2026) | Calibration metrics on MATH over 3 iterations; fix requires objective modification. We extend to 20 iterations with a data-side-only fix. |
+| **RLSR** (2025) | Self-reward divergence under RL/GRPO. We show the same collapse in pure SFT — no RL pressure required. |
+| **Gao et al. 2023** | External RM scores diverge under optimisation pressure. We show the same divergence emerging endogenously with no external RM. |
 
 ---
 
@@ -100,8 +122,16 @@ verification-collapse/
 ├── experiments/
 │   └── configs/
 │       ├── sanity_check.yaml            # 50 samples, 3 iters — quick smoke test
-│       ├── baseline.yaml                # 250 samples, 20 iters, injection DISABLED
-│       └── injection.yaml               # 250 samples, 20 iters, injection every 3 iters
+│       ├── baseline.yaml                # 250 samples, 20 iters, injection DISABLED ✅
+│       ├── injection.yaml               # 250 samples, 20 iters, injection every 3 ✅
+│       ├── gt_anchored.yaml             # 500 samples, 20 iters, GT filter ✅
+│       ├── llama3_baseline.yaml         # 500 samples, 20 iters, Llama-3-8B ✅
+│       ├── mistral_baseline.yaml        # 500 samples, 20 iters, Mistral-7B ✅
+│       ├── random_negatives.yaml        # 500 samples, 20 iters, threshold=0.0 ⏳
+│       ├── injection_interval1.yaml     # 500 samples, 20 iters, inject every iter ⏳
+│       ├── injection_interval6.yaml     # 500 samples, 20 iters, inject every 6 ⏳
+│       ├── injection_ratio25.yaml       # 500 samples, 20 iters, 25% ratio ⏳
+│       └── math_l5_baseline.yaml        # 500 samples, 20 iters, Level 5 only ⏳
 ├── data/
 │   └── math_subset.json                 # 250 MATH L3–5 problems, committed to git
 ├── logs/                                # CSV outputs per run (gitignored)
@@ -111,7 +141,9 @@ verification-collapse/
 ├── notes/
 │   └── lab_notebook.md                  # Updated after every run
 └── paper/
-    └── draft.tex
+    ├── draft.tex                        # Main LaTeX — compiles on Overleaf
+    ├── related_work.md                  # Positioning notes for §2
+    └── problem_statement.md             # Core claim and Δ_t definition
 ```
 
 ---
@@ -132,22 +164,10 @@ Flash Attention 2 is optional but recommended for H100/A100. The code falls back
 python run_experiment.py --config experiments/configs/sanity_check.yaml
 ```
 
-### Run baseline (20 iterations — requires H100 SXM or equivalent)
+### Run an experiment (production)
 
 ```bash
-mkdir -p logs/baseline models
-nohup python run_experiment.py --config experiments/configs/baseline.yaml \
-  > logs/baseline_run.log 2>&1 &
-tail -f logs/baseline_run.log
-```
-
-### Run injection experiment
-
-```bash
-mkdir -p logs/injection models
-nohup python run_experiment.py --config experiments/configs/injection.yaml \
-  > logs/injection_run.log 2>&1 &
-tail -f logs/injection_run.log
+python run_experiment.py --config experiments/configs/baseline.yaml
 ```
 
 Results are written to `logs/<run_name>/metrics.csv`. W&B logging is optional — set `wandb.enabled: true` in the config if credentials are available.
@@ -158,18 +178,25 @@ Results are written to `logs/<run_name>/metrics.csv`. W&B logging is optional �
 
 | Experiment | Status | Key Result |
 |------------|--------|------------|
-| Sanity check (3 iter, 40 samples) | Done | Signal direction correct; too noisy to confirm monotonicity |
-| **Baseline (20 iter, 200 samples)** | **Done** | **Gap 0.105 → 0.320 (3×) — clean collapse signal** |
-| **Injection (20 iter, 200 samples, hard-neg every 3)** | **Done** | **Steady-state gap ~0.170 (−47% vs baseline at iter 20); gt_val trends to 0.50–0.52** |
+| Sanity check (3 iter, 40 samples) | ✅ | Signal direction correct |
+| Baseline — Qwen (20 iter, 200 samples) | ✅ | Gap 0.105→0.320 (3×) |
+| Injection — Qwen (20 iter, inject every 3) | ✅ | Steady-state gap ~0.170 (−47%) |
+| GT-anchored control — Qwen | ✅ | Gap decreases; gt_train +78% |
+| Llama-3-8B baseline | ✅ | Transient collapse (peak 0.368, iter 13) |
+| Mistral-7B baseline | ✅ | Immediate collapse (0.580→0.850) |
+| random_negatives | ⏳ | |
+| math_l5_baseline | ⏳ | |
+| injection_interval1/6, injection_ratio25 | ⏳ | |
 
 ---
 
 ## Hardware Notes
 
-- **Recommended:** H100 SXM (80 GB) or equivalent
-- Generation with `gen_batch_size=128` consumes ~77 GB. An explicit `torch.cuda.empty_cache()` between generation and fine-tuning is required to avoid OOM on the backward pass.
-- BF16 (no quantization) is used for production runs. 4-bit NF4 + DoRA is disabled — it caused 20+ min/sample generation latency.
-- Greedy decoding (`do_sample=False`) is enforced throughout for deterministic scoring.
+- **Minimum:** 80 GB VRAM — `gen_batch_size=128` fills ~77 GB. H100 PCIe or A100 80GB both work.
+- An explicit `torch.cuda.empty_cache()` after generation and after fine-tuning is required to avoid OOM on the backward pass.
+- BF16 (no quantization). DoRA disabled — caused 20+ min/sample latency with NF4.
+- Greedy decoding (`do_sample=False`) enforced throughout for deterministic scoring.
+- Llama-3 requires `export HF_TOKEN=hf_...` with accepted Meta Llama 3 license on HuggingFace.
 
 ---
 

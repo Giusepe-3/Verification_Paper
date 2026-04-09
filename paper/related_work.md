@@ -9,7 +9,7 @@ Verified against papers: April 2026.
 
 **STaR** (Zelikman et al., 2022): Uses ground truth as an anchor at every iteration (rationalization step requires correct answer). No collapse by design — the external signal never leaves the loop. Useful contrast: shows that grounding prevents divergence.
 
-**AZR / DeepSeek** (NeurIPS 2025 spotlight): Assumes self-verification stays calibrated across training. Does not test that assumption empirically. We provide the test — and it fails.
+**AZR** (Zhao et al., Tsinghua/BIGAI/Penn State; NeurIPS 2025 poster, arXiv:2505.03335): Eliminates human-curated data. The model proposes tasks and solves them, but verification is delegated to a **code executor** — an external programmatic signal, not self-judgment. AZR is therefore externally grounded (like STaR, but via execution rather than labels). Our collapse findings apply to domains where no such executor is available.
 
 **ReST / RLHF variants**: Use an external reward model. Related but distinct failure mode: RM overoptimization (see Cluster 2). Not endogenous.
 
@@ -33,13 +33,13 @@ Our distinction: we show the same score-vs-reality divergence emerging **endogen
 
 `gap(f, g) = J(f[w(û_g)]) − J(f)`
 
-The accuracy improvement obtainable by filtering a batch of generations using the self-verifier `û_g`. A positive gap means the verifier ranks good outputs above bad ones. Their key finding: this gap saturates to **zero within 2–3 rounds** of iterative self-improvement, due to diversity collapse (the model stops generating diverse candidates).
+The accuracy improvement obtainable by filtering a batch of generations using the self-verifier `û_g`. A positive gap means the verifier ranks good outputs above bad ones. Their key finding: this gap saturates to **zero within 2–3 rounds** of iterative self-improvement, potentially due to decreased effective diversity (the model converges on incorrect answers for certain questions, reducing pass@k).
 
 ### What they do NOT measure (verified against Appendix D.3)
 
-Algorithm 1 uses the self-verification score `s(x,y) = û_{f_{t-1}}(x,y)` purely as a **filter** — examples above threshold τ go into the training batch. The score value is never recorded. They never plot `s_t^self` against `s_t^ext`. They observe only downstream benchmark accuracy at each round, not verifier calibration.
+Algorithm 1 uses the self-verification score `s(x,y) = û_{f_{t-1}}(x,y)` as a filter — examples above threshold τ go into the training batch. Song et al. track and plot the GV-Gap (a derived quantity of those scores) at every iteration in Figure 4, but this measures **filtering utility** — whether verification improves downstream accuracy — not **raw calibration** of self-assigned scores against ground truth. They do not plot `s_t^self` against `s_t^ext` as separate time series.
 
-A model could be increasingly overconfident across all 20 iterations and their setup would not detect it.
+A model could be increasingly overconfident across all 20 iterations (Δ_t → large) while GV-Gap → 0, and their setup would not detect the overconfidence.
 
 ### What we measure
 
@@ -120,9 +120,9 @@ Our contribution: we quantify the phenomenon with a controlled 20-iteration expe
 song2025mindthegap     — arXiv:2412.02674, ICLR 2025
 zelikman2022star       — STaR
 yuan2024self           — SRLM
-deepseek2025azr        — AZR, NeurIPS 2025
+zhao2025azr            — AZR, Zhao et al. (Tsinghua/BIGAI/Penn State), NeurIPS 2025 poster, arXiv:2505.03335
 gao2023scaling         — RM overoptimization
-li2025beyondaccuracy   — arXiv:2504.02902 (Beyond Accuracy / Calibration)
+huang2025beyondaccuracy — arXiv:2504.02902 (Beyond Accuracy / Calibration)
 epicar2026             — arXiv:2601.06786 (EpiCaR)
 rlsr2025               — arXiv:2505.08827 (RLSR)
 ```
