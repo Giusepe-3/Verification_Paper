@@ -23,7 +23,7 @@
 
 model:
   name: "Qwen/Qwen2.5-7B-Instruct"
-  init_checkpoint: "models/baseline/iter_020"   # collapsed checkpoint
+  init_checkpoint: "models/baseline_500/iter_020"   # collapsed checkpoint (from baseline_500.yaml)
   quantization:
     load_in_4bit: false
     bnb_4bit_quant_type: "nf4"

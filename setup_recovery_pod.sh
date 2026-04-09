@@ -56,21 +56,22 @@ POSTCHECK
 
 mkdir -p logs data
 
-# --- Step 1: run baseline to generate the collapsed iter_020 checkpoint ---
+# --- Step 1: run baseline_500 to generate the collapsed iter_020 checkpoint ---
+# Two wins: (1) stronger 500-sample baseline for the paper, (2) checkpoint for recovery.
 echo ""
 echo "=========================================="
-echo "  STEP 1/2: baseline (regenerating iter_020 checkpoint)"
-echo "  ~5h — saves to models/baseline/iter_020"
+echo "  STEP 1/2: baseline_500 (500 samples, no injection)"
+echo "  ~5h — saves to models/baseline_500/iter_020"
 echo "=========================================="
-python -u run_experiment.py --config experiments/configs/baseline.yaml \
-  2>&1 | tee logs/baseline_for_recovery_run.log
+python -u run_experiment.py --config experiments/configs/baseline_500.yaml \
+  2>&1 | tee logs/baseline_500_run.log
 
 # Verify checkpoint exists before continuing
-if [ ! -d "models/baseline/iter_020" ]; then
-  echo "ERROR: models/baseline/iter_020 not found after baseline run — check logs/baseline_for_recovery_run.log"
+if [ ! -d "models/baseline_500/iter_020" ]; then
+  echo "ERROR: models/baseline_500/iter_020 not found after baseline_500 run — check logs/baseline_500_run.log"
   exit 1
 fi
-echo "Checkpoint verified: models/baseline/iter_020"
+echo "Checkpoint verified: models/baseline_500/iter_020"
 
 # --- Step 2: run recovery from the collapsed checkpoint ---
 echo ""
@@ -83,5 +84,5 @@ python -u run_experiment.py --config experiments/configs/recovery.yaml \
 
 echo ""
 echo "Pipeline complete. CSVs:"
-echo "  logs/baseline_for_recovery_run.log  (step 1 stdout)"
-echo "  logs/recovery/metrics.csv           (recovery metrics)"
+echo "  logs/baseline_500/metrics.csv   (500-sample baseline)"
+echo "  logs/recovery/metrics.csv       (recovery — collapse → recalibration)"
