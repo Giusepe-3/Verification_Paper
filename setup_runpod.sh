@@ -2,7 +2,7 @@
 # Usage: bash setup_runpod.sh <config_name>
 # Example: bash setup_runpod.sh random_negatives
 # For Llama-3 configs: export HF_TOKEN=hf_... before running
-set -e
+set -eo pipefail
 
 CONFIG=${1}
 if [ -z "$CONFIG" ]; then
