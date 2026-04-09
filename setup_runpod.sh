@@ -22,8 +22,10 @@ export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 # RunPod pods ship with a CUDA-matched PyTorch. Reinstalling torch via pip
 # replaces it with a version that may not match the pod's CUDA driver → segfault.
 # Skip torch and flash-attn; verifier.py falls back to sdpa automatically.
-grep -vE '^(torch|flash-attn)' requirements.txt | pip install -r /dev/stdin -q
-pip uninstall flash-attn -y 2>/dev/null || true
+# Skip torch (pod ships CUDA-matched), flash-attn (segfaults), bitsandbytes
+# (not needed for load_in_4bit: false configs; can segfault on CUDA mismatch).
+grep -vE '^(torch|flash-attn|bitsandbytes)' requirements.txt | pip install -r /dev/stdin -q
+pip uninstall flash-attn bitsandbytes -y 2>/dev/null || true
 
 # HF auth — required for Llama-3 configs, harmless otherwise
 if [ -n "$HF_TOKEN" ]; then

@@ -35,7 +35,6 @@ from peft import (
 from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
-    BitsAndBytesConfig,
     get_cosine_schedule_with_warmup,
 )
 from torch.optim import AdamW
@@ -87,16 +86,16 @@ class ModelVerifier:
         mcfg = self.config["model"]
         qcfg = mcfg["quantization"]
 
-        bnb_config = (
-            BitsAndBytesConfig(
+        if qcfg["load_in_4bit"]:
+            from transformers import BitsAndBytesConfig
+            bnb_config = BitsAndBytesConfig(
                 load_in_4bit=True,
                 bnb_4bit_quant_type=qcfg["bnb_4bit_quant_type"],
                 bnb_4bit_compute_dtype=getattr(torch, qcfg["bnb_4bit_compute_dtype"]),
                 bnb_4bit_use_double_quant=qcfg["bnb_4bit_use_double_quant"],
             )
-            if qcfg["load_in_4bit"]
-            else None
-        )
+        else:
+            bnb_config = None
 
         self.tokenizer = AutoTokenizer.from_pretrained(
             mcfg["name"],
@@ -112,7 +111,7 @@ class ModelVerifier:
             quantization_config=bnb_config,
             device_map={"": 0},
             trust_remote_code=True,
-            dtype=torch.bfloat16,
+            torch_dtype=torch.bfloat16,
             attn_implementation=_ATTN_IMPL,
         )
         # use_cache must be False when gradient checkpointing is on; True otherwise
