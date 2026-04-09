@@ -19,9 +19,10 @@ fi
 
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
-pip install -r requirements.txt -q
-# flash-attn pre-built binaries often segfault on mismatched CUDA/PyTorch.
-# verifier.py falls back to sdpa automatically when flash-attn is absent.
+# RunPod pods ship with a CUDA-matched PyTorch. Reinstalling torch via pip
+# replaces it with a version that may not match the pod's CUDA driver → segfault.
+# Skip torch and flash-attn; verifier.py falls back to sdpa automatically.
+grep -vE '^(torch|flash-attn)' requirements.txt | pip install -r /dev/stdin -q
 pip uninstall flash-attn -y 2>/dev/null || true
 
 # HF auth — required for Llama-3 configs, harmless otherwise
