@@ -35,6 +35,9 @@ paper/*.fls
 paper/*.fdb_latexmk
 paper/*.toc
 
+# Preview images (generated for in-conversation display)
+*_preview.png
+
 # Jupyter
 .ipynb_checkpoints/
 
