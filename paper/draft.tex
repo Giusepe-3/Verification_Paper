@@ -5,17 +5,23 @@
 % ============================================================
 
 \documentclass{article}
-% NOTE: swap the line below for \usepackage[preprint]{neurips_2026} once you
-% have the NeurIPS 2026 style file (download from the submission site).
-\usepackage[margin=1in]{geometry}  % plain fallback for local preview
-\usepackage[utf8]{inputenc}
-\usepackage{amsmath, amssymb, amsthm}
-\usepackage{booktabs}
+
+% NeurIPS 2026 — use [preprint] for arXiv upload.
+\usepackage{neurips_2026}
+
+\usepackage[utf8]{inputenc}   % allow utf-8 input
+\usepackage[T1]{fontenc}      % use 8-bit T1 fonts
+\usepackage{lmodern}          % scalable fonts (fixes microtype expansion error)
+\usepackage{hyperref}         % hyperlinks
+\usepackage{url}              % simple URL typesetting
+\usepackage{booktabs}         % professional-quality tables
+\usepackage{amsmath, amssymb} % math
+\usepackage{amsfonts}         % blackboard math symbols
+\usepackage{nicefrac}         % compact symbols for 1/2, etc.
+\usepackage{microtype}        % microtypography
+\usepackage{xcolor}           % colors
 \usepackage{graphicx}
 \graphicspath{{figures/}}
-\usepackage{hyperref}
-\usepackage{xcolor}
-\usepackage{microtype}
 \usepackage{natbib}
 
 % ---- convenience macros ----
@@ -27,10 +33,9 @@
 % ============================================================
 \title{Verification Collapse in Iterative Self-Improving Language Models}
 
-\author{
-  \todo{Author list}\\
-  \todo{Institution}
-}
+% Submission is double-blind — author block is omitted.
+% Add authors here only for the camera-ready version.
+\author{}
 
 \begin{document}
 \maketitle
@@ -289,7 +294,7 @@ We quantify this phenomenon in a controlled 20-iteration experiment, define $\De
 as the primary diagnostic metric, and show the gap grows monotonically in the
 unmitigated baseline while adversarial injection bounds it without requiring any external
 judge.
-\citet{yuan2026solververifier} provide a theoretical complement: they model
+\citet{sun2025solververifier} provide a theoretical complement: they model
 solver and verifier capability as converging exponentially to stable limits under
 iterative self-improvement.
 Our empirical results document the pathological case their theory does not cover:
@@ -337,7 +342,7 @@ The dataset is fixed across all iterations; only the model changes.
 \subsection{Model}
 
 We use Qwen2.5-7B-Instruct \citep{qwen2025} in BF16 precision with
-Flash Attention 2 \citep{dao2023flashattention2} and a QLoRA adapter
+Flash Attention 2 \citep{dao2023flashattention2} and a LoRA adapter
 (rank $r=16$, $\alpha=32$, all-linear target modules, no DoRA).
 No 4-bit quantization is applied; the model runs at full BF16 precision
 on an NVIDIA H100 SXM (80 GB).
@@ -353,7 +358,7 @@ At each iteration $t = 1, \ldots, 20$:
         reference answer. This yields self-score $\self^{(t)} \in \{0,1\}$
         per sample.
   \item \textbf{Filter and fine-tune.} The model is fine-tuned (one epoch,
-        QLoRA, effective batch 32) on the subset of problems for which
+        LoRA, effective batch 32) on the subset of problems for which
         $\self^{(t)} > 0$, using the model's own completion as the
         training target.
   \item \textbf{Evaluate.} Ground-truth accuracy $\gt^{(t)}$ is measured on
@@ -702,55 +707,251 @@ Llama-3-8B  & Baseline (self-score)         & 0.058 & 0.368 (i13)  & 0.148 & 0.2
 \end{table}
 
 % ============================================================
-\section{Discussion}
-\label{sec:discussion}
+\section{Ablations}
+\label{sec:ablations}
+
+The main results establish that (i)~verification collapse occurs under self-score filtering
+and (ii)~adversarial hard-negative injection reduces the steady-state gap by 47\%.
+Four ablations probe the scope and mechanism of these findings.
 
 % --- WRITING HOOK ---
 %
-% Three paragraphs:
+% Fill \todo{} placeholders once pods finish (~April 10-11).
+% random_negatives and llama3_injection are running now.
+% baseline_500 and recovery follow on Pod 1 after random_negatives.
 %
-% 1. Why does collapse happen?
-%    The model fine-tunes on its own completions for problems it thinks it
-%    solved. Once the model is systematically overconfident (which happens
-%    fast — by iter 3–4 the gap is already 0.20+), it trains on wrong
-%    completions. The LoRA adapter amplifies confidence in those wrong
-%    completions. The self-score then reflects LoRA-distorted priors, not
-%    correctness. Loss→0 confirms memorization.
-%
-% 2. Why does injection help?
-%    Hard negatives provide the only ground-truth-anchored signal in the loop.
-%    By forcing the model to see gold solutions for problems it was confidently
-%    wrong about, the injection step partially overwrites the overconfident
-%    LoRA weights. The model's self-score drops back toward reality after each
-%    injection (iter 4: self=0.51 vs iter 3: self=0.64).
-%
-% 3. Limitations and future work:
-%    - Hard negatives are accumulated from a fixed 200-problem pool — bank
-%      saturates (~iter 12, hard_negs plateau near 97). Larger or dynamic
-%      datasets would extend the benefit.
-%    - Injection interval (every 3 iters) and ratio (50%) not ablated.
-%    - Only one model (Qwen2.5-7B) and one domain (MATH L3-5) tested.
-%    - The gap metric measures overconfidence, not downstream task performance.
-%      Future work: measure collapse on open-ended generation where GT is harder
-%      to define.
+% Key questions each ablation answers:
+%   random_negatives  — is overconfidence-ranking load-bearing, or does any GT data suffice?
+%   llama3_injection  — does injection generalise across model families?
+%   baseline_500      — does collapse replicate at 500 samples?
+%   recovery          — is injection corrective, or only preventive?
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\linewidth]{fig3_ablations.pdf}
+
+\caption{\textbf{Ablation trajectories.} Each panel plots $\gap_t$ (solid) and
+$\bar{\gt}^\text{val}_t$ (dashed) against iteration. Panels (a)--(c) run
+for 20 iterations; panel (d) shows the 20-iteration recovery phase starting
+from the \textsc{baseline-500} iter-20 checkpoint.
+}
+\label{fig:ablations}
+\end{figure}
+
+\subsection{Random Negatives: Is Overconfidence Ranking Load-Bearing?}
+\label{sec:random-negatives}
+
+The adversarial injection variant selects hard negatives by overconfidence rank: examples
+where the model assigned a high self-score to a wrong answer (confidence threshold
+$\theta = 0.7$).
+This conflates two independent factors: (1)~introducing any ground-truth-anchored data
+into the loop and (2)~targeting specifically the most overconfident errors.
+The \textsc{random-negatives} ablation isolates them.
+We inject the same volume and frequency of gold-solution training data as the injection
+run, but draw examples uniformly from all wrong answers regardless of self-score
+($\theta = 0$).
+If the steady-state gap under random selection is indistinguishable from the hard-negatives
+run, factor~(1) alone explains the 47\% reduction.
+If it exceeds the hard-negatives steady state, the adversarial selection criterion carries
+independent weight.
+
+\begin{table}[h]
+\centering
+\caption{Random-negatives ablation: steady-state gap (non-injection iterations)
+vs.\ hard-negatives injection (from Table~\ref{tab:injection}).}
+\label{tab:random-negatives}
+\small
+\begin{tabular}{lcccc}
+\toprule
+Condition & $\gap_1$ & $\gap_{20}$ (steady) & $\overline{\gt}_\text{train,20}$ & $\overline{\gt}_\text{val,20}$ \\
+\midrule
+Baseline (self-score)             & 0.105 & 0.320 & 0.450 & 0.460 \\
+Injection ($\theta{=}0.7$, 50\%)  & 0.105 & 0.170 & 0.525 & 0.420 \\
+Random negatives ($\theta{=}0$)   & 0.173 & 0.095 & 0.410 & 0.350 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The random-negatives gap at iteration~20 ($0.095$) is \emph{lower} than the
+hard-negatives steady state ($0.170$), not merely comparable.
+Overconfidence ranking is not load-bearing: drawing injected examples uniformly
+from all wrong answers suppresses collapse at least as effectively as targeting
+the model's most confident errors.
+The key variable is the \emph{presence} of ground-truth-anchored data in the
+loop, not the selection criterion used to choose it.
+One possible explanation for the stronger suppression under random selection is
+pool diversity: with $\theta = 0$, the injection draws from all incorrect
+examples (236--326 per iteration), whereas hard-negative selection
+($\theta = 0.7$) restricts to a smaller, more homogeneous subset of
+high-confidence errors (22--84).
+The broader pool may provide a more varied recalibration signal, preventing the
+model from overfitting to a narrow failure mode.
+This result simplifies the practical prescription: any volume-matched injection
+of gold-solution training data on wrong examples suffices; overconfidence ranking
+adds implementation complexity without measurable benefit.
+
+\subsection{Llama-3 Injection: Cross-Model Generalizability of the Fix}
+\label{sec:llama3-injection}
+
+The injection mitigation was developed and evaluated on Qwen2.5-7B.
+Llama-3-8B-Instruct shows a qualitatively different collapse regime---transient peak-and-recover
+rather than monotonic---driven by a different failure mode (LoRA-induced degradation of
+instruction following rather than pure overconfidence inflation).
+If the mechanism differs, the fix may not transfer.
+The \textsc{llama3-injection} run applies the same injection protocol
+($N{=}3$, $R{=}50\%$, $\theta{=}0.7$) to Llama-3-8B under otherwise identical conditions
+to the Llama-3 baseline ($500$ samples, 20 iterations, self-score filter outside injection steps).
+
+\begin{table}[h]
+\centering
+\caption{Llama-3-8B: baseline vs.\ injection. Steady-state gap excludes injection
+iterations ($\bigstar$). Peak $\gap$ is the maximum over all iterations.}
+\label{tab:llama3-injection}
+\small
+\begin{tabular}{lcccc}
+\toprule
+Condition & $\gap_1$ & Peak $\gap$ & $\gap_{20}$ & $\overline{\gt}_\text{train,20}$ \\
+\midrule
+Llama-3 baseline  & 0.058 & 0.368 (iter 13) & 0.148 & 0.230 \\
+Llama-3 injection & 0.033 & 0.600 (iter 18) & 0.320 & 0.315 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Injection does not generalise to Llama-3-8B.
+The injection run ends at $\gap_{20} = 0.320$, more than double the baseline's
+$0.148$, and the peak gap reaches $0.600$ (iteration~18), far exceeding the
+baseline peak of $0.368$ (iteration~13).
+The temporal pattern is revealing: injection initially suppresses the gap
+(iterations~4--10, where the injection run's non-injection gaps are 25--48\%
+below baseline), but by iteration~17 the injection run's gap \emph{exceeds}
+the baseline ($0.390$ vs.\ $0.328$), and the reversal widens through
+iteration~20.
+The baseline undergoes its natural self-judgment degradation and partial
+recovery after iteration~13; the injection run does not, because the periodic
+hard-negative injections sustain the model's capacity for confident
+(but wrong) self-scoring, preventing the LoRA-distortion-driven recovery
+that occurs without intervention.
+Injection effectiveness is thus capability-gated: on Qwen2.5-7B
+($\bar{\gt}^\text{train}_1 = 0.36$), the model can productively use
+the GT recalibration signal; on Llama-3-8B ($\bar{\gt}^\text{train}_1 = 0.23$),
+the same signal is overwhelmed by the volume of overconfident self-judged
+examples in the non-injection portion of each batch.
+This establishes a boundary condition for the method: injection requires
+sufficient base competence to benefit from ground-truth correction.
+
+\subsection{Scale Replication: Baseline at 500 Samples}
+\label{sec:baseline-500}
+
+The primary baseline uses 250 training problems (200 train / 50 val) drawn from MATH L3--5.
+To rule out the possibility that collapse is an artifact of training set size---for example,
+if the gap grows because the model rapidly memorises a small problem pool---we replicate
+the baseline at 500 samples (400 train / 100 val).
+The \textsc{baseline-500} run uses the same model (Qwen2.5-7B-Instruct), loop, filter
+(\texttt{self\_score}), and iteration count (20) as the primary baseline.
+
+\begin{table}[h]
+\centering
+\caption{Baseline replication at 500 samples vs.\ primary baseline (250 samples).}
+\label{tab:baseline-500}
+\small
+\begin{tabular}{lcccc}
+\toprule
+Condition & Samples & $\gap_1$ & $\gap_{20}$ & $\overline{\gt}_\text{train,20}$ \\
+\midrule
+Baseline (250)  & 250 & 0.105 & 0.320 & 0.450 \\
+Baseline (500)  & 500 & 0.173 & 0.320 & 0.375 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Collapse replicates at 500 samples with nearly identical trajectory to the 250-sample
+primary baseline.
+The gap grows from $0.173$ at iteration~1 to $0.320$ at iteration~20, matching the
+primary baseline's final gap of $0.320$ exactly, while $\bar{\gt}^\text{train}$
+ends at $0.375$ versus $0.450$ in the 250-sample run---a modest difference attributable
+to the larger, more diverse training pool.
+The collapse rate (gap growth per iteration) is indistinguishable between the two sizes:
+both reach $\gap \approx 0.20$ by iteration~5 and $\gap \approx 0.30$ by iteration~15.
+Small-dataset memorization is therefore not a confound: collapse at 250 samples is not
+driven by the model exhausting a small problem pool, but by the self-score filter
+mechanism itself.
+
+\subsection{Recovery: Corrective Injection from a Collapsed Checkpoint}
+\label{sec:recovery}
+
+All prior ablations apply injection from iteration~1 (\emph{preventive} use).
+A practically important question is whether injection is also \emph{corrective}:
+can it reduce the gap in a model that has already collapsed?
+The \textsc{recovery} experiment begins from the \textsc{baseline-500} checkpoint at
+iteration~20 ($\gap_{20} = 0.320$)---a fully collapsed
+model---and applies 20 further iterations with injection ($N{=}3$, $R{=}50\%$,
+$\theta{=}0.7$).
+A decreasing gap trajectory in the recovery run would establish that the damage caused by
+self-score filtering is reversible; a flat or increasing trajectory would imply that
+collapsed self-verifiers require retraining from scratch.
+
+\begin{table}[h]
+\centering
+\caption{Recovery run: gap trajectory after injection applied to a collapsed checkpoint.
+Iteration index resets to 1 at the start of the recovery phase.}
+\label{tab:recovery}
+\small
+\begin{tabular}{rcccc}
+\toprule
+Recovery iter & $\overline{\self}$ & $\overline{\gt}_\text{train}$ & $\overline{\gt}_\text{val}$ & $\gap$ \\
+\midrule
+0 (start = baseline-500 iter 20) & 0.695 & 0.375 & 0.420 & 0.320 \\
+5  & 0.578 & 0.328 & 0.450 & 0.250 \\
+10 & 0.575 & 0.320 & 0.460 & 0.255 \\
+15 & 0.478 & 0.425 & 0.330 & 0.052 \\
+20 & 0.565 & 0.363 & 0.370 & 0.203 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Injection is corrective as well as preventive.
+Starting from a fully collapsed checkpoint ($\gap_0 = 0.320$), the recovery run
+reduces the gap to $0.203$ by iteration~20---a 37\% reduction from the collapsed
+state---without any retraining from scratch.
+The trajectory is not monotonically decreasing: it follows the same injection sawtooth
+pattern seen in the preventive run, with gap spikes on injection iterations and partial
+recoveries between them.
+The trend is nonetheless clearly downward: by iteration~15 the gap reaches $0.052$
+(its lowest point, $\bar{\gt}^\text{train} = 0.425$), before rising again as the
+injection signal competes with the residual collapsed weights.
+The steady-state oscillation settles around $0.20$---higher than the preventive
+injection steady state of $0.170$, consistent with the collapsed model carrying
+entrenched LoRA distortions that periodic injection can partially but not fully
+overcome.
+The practical implication is direct: a system discovered to have collapsed does not
+require retraining; a standard injection protocol applied post-collapse recovers
+a substantial fraction of the gap reduction achievable from the start.
+
+% ============================================================
+\section{Discussion}
+\label{sec:discussion}
 
 \paragraph{Why collapse happens.}
 The mechanism is a closed reinforcement loop with a corrupted reward signal.
 At iteration $t$, the model generates solutions, assigns self-scores, and
 fine-tunes on the subset it believes to be correct.
-By iteration 3--4, $\Delta_t$ already exceeds 0.20 in the Qwen baseline,
+By iteration 4, the gap ($\Delta_t$) already exceeds 0.20 in the Qwen baseline,
 which means the model is systematically selecting \emph{wrong} completions
 as positive training examples.
-The LoRA adapter then reinforces the linguistic patterns that trigger
-high self-scores---confident hedges, structurally plausible but incorrect
+The LoRA adapter then reinforces the patterns that trigger high
+self-scores---confident hedges, structurally plausible but incorrect
 algebra, well-formatted answers to the wrong question---because those
-patterns co-occur with the self-score signal, not with correctness.
+patterns align with the self-score signal, not with correctness.
 The near-zero training loss by iteration 10 ($\mathcal{L}_{10} = 0.006$)
 is the fingerprint of memorisation: the model has fitted its own
 confabulations.
-At that point $\gap$ continues to grow not because the self-verifier is
-independently miscalibrating, but because $\bar{\gt}^\text{train}$ stays
-flat while $\bar{\self}$ climbs on the back of those memorised completions.
+At that point the gap continues to grow not because the self-verifier is
+independently miscalibrating, but because $\bar{\gt}^\text{train}$ improves
+only marginally ($0.36 \to 0.45$) while $\bar{\self}$ climbs steeply
+($0.465 \to 0.770$) on the back of those memorised completions---a
+divergence that is not reflected in real held-out performance, which rises
+only modestly from $\gt^\text{val} = 0.40$ to $0.46$ over 20 iterations.
 The GT-anchored ablation closes the loop cleanly: swapping the training filter
 from self-score to ground truth ($\gt > 0$) reverses the
 trajectory---gap falls $0.190 \to 0.122$ over 20 iterations---because
@@ -798,39 +999,67 @@ The sawtooth pattern in Figure~\ref{fig:baseline-injection}(b) reflects this dir
 spikes at injection-step boundaries as the model is forced to contend with
 its overconfident errors, then partially recovers between injections.
 The steady-state gap of $0.170$ at iteration 20 represents a 47\% reduction
-relative to the 0.320 baseline, and $\bar{\gt}^\text{val}$ trends upward to
-0.50--0.52 versus flat in the baseline, confirming that genuine learning
-accompanies the recalibration.
+relative to the 0.320 baseline. $\bar{\gt}^\text{val}$ remains comparable
+to the baseline across iterations (both fluctuate in the 0.38--0.46 range),
+indicating that the gap reduction comes from recalibration rather than
+degraded task performance.
 
-\paragraph{GT efficiency of injection.}
+\paragraph{GT efficiency and the role of selection.}
 The practical force of adversarial injection lies not only in the gap reduction
 but in how little ground truth it requires.
 The GT-anchored condition uses ground truth to filter training data at every
 iteration (20 out of 20); injection introduces GT-grounded signal only at
 injection steps (6 out of 20 iterations) and only into 50\% of the batch,
 amounting to roughly 15\% of the GT exposure.
-Despite this 85\% reduction in ground-truth data, injection achieves
-$\overline{\gt}_{\text{train},20} = 0.525$ versus $0.535$ for the fully
-GT-anchored condition, a difference of less than 2\%.
-The verification gap is reduced by 47\% relative to baseline ($0.170$ vs.\
-$0.320$), compared to a full reversal under GT-anchoring ($0.122$).
-In other words, a small, targeted dose of ground truth, applied to the
-examples where the model is most confidently wrong, captures most of the
-benefit of full GT supervision.
-This is the core of the distillation argument: the self-verifier does not
-need continuous access to ground truth; it needs periodic recalibration on
-its worst failures.
+Despite this 85\% reduction in ground-truth data, injection achieves a reduction
+in the verification gap of 47\% relative to baseline ($0.170$ vs.\ $0.320$),
+compared to a full reversal under GT-anchoring ($0.122$).
+The self-verifier does not need continuous access to ground truth; it needs
+periodic recalibration on examples where it is wrong.
 
-We note, however, that the intervention conflates two distinct factors: (1)~injecting
-any ground-truth-anchored data into the loop, and (2)~selecting specifically the examples
-where the model was \emph{most overconfident} (high-$\bar{\self}$, wrong answer).
-The 47\% reduction could be driven by factor~(1) alone --- ``ground truth helps'' --- with
-the adversarial selection criterion doing no independent work.
-We isolate these factors in the \textsc{random-negatives} ablation (Section~\ref{sec:ablations}),
-which injects the same volume of gold-solution training data drawn uniformly from wrong
-examples rather than by overconfidence rank ($\theta = 0$).
-If the hard-negative selection is load-bearing, the random-negatives gap should exceed the
-hard-negatives steady state; if factor~(1) suffices, the two should be indistinguishable.
+A natural question is whether the \emph{adversarial selection criterion}---targeting
+the model's most overconfident errors ($\bar{\self} > 0.7$, wrong answer)---is
+load-bearing, or whether any ground-truth-anchored data of the same volume would
+suffice.
+The \textsc{random-negatives} ablation (Section~\ref{sec:random-negatives})
+resolves this: injecting gold-solution training data drawn uniformly from
+\emph{all} wrong examples ($\theta = 0$) achieves $\gap_{20} = 0.095$,
+a stronger suppression than the hard-negatives variant ($0.170$).
+Overconfidence ranking is not load-bearing; the key variable is the
+\emph{presence and volume} of ground-truth-anchored data in the loop, not the
+criterion used to select it.
+This simplifies the practical prescription considerably: any volume-matched
+injection of gold solutions on wrong examples suffices to bound collapse.
+The adversarial framing remains useful as motivation---hard negatives are
+the failure cases the default loop never trains on---but the selection
+mechanism adds implementation complexity without measurable benefit.
+
+\paragraph{Injection is capability-gated.}
+The injection mitigation was developed on Qwen2.5-7B, which enters the loop
+with moderate base accuracy ($\bar{\gt}^\text{train}_1 = 0.36$).
+On Llama-3-8B ($\bar{\gt}^\text{train}_1 = 0.23$), the same protocol produces
+the opposite effect: $\gap_{20} = 0.320$ under injection versus $0.148$
+without it (Section~\ref{sec:llama3-injection}).
+Injection initially helps---non-injection gaps are 25--48\% below baseline
+through iteration~10---but by iteration~17 the injection run's gap exceeds
+the baseline and the reversal widens through iteration~20.
+The mechanism is asymmetric: on Qwen, injection resets overconfidence and
+$\bar{\gt}^\text{train}$ improves between injection steps; on Llama-3,
+the periodic injections sustain the model's capacity for confident self-scoring,
+preventing the natural LoRA-distortion-driven recovery that occurs in the
+uninjected baseline after iteration~13.
+The injection run thus maintains the conditions for overconfidence to
+compound, rather than allowing self-judgment to degrade into a less harmful
+(if also less useful) low-confidence state.
+This establishes a boundary condition: injection requires sufficient base
+competence to benefit from ground-truth recalibration.
+When $\bar{\gt}^\text{train}_1$ is too low, the volume of overconfident
+self-judged examples in each non-injection batch overwhelms the corrective
+signal.
+A rough threshold emerges from our data: injection helps at $\sim$36\%
+base accuracy but hurts at $\sim$23\%, suggesting that practitioners should
+verify base competence on the target domain before deploying injection as a
+mitigation.
 
 \paragraph{Limitations.}
 Several constraints bound the scope of our conclusions.
@@ -845,7 +1074,7 @@ does not disentangle; the \textsc{random-negatives} ablation addresses this dire
 Third, we ablate the injection interval ($N \in \{1,3,6\}$) and ratio
 ($R \in \{25\%, 50\%\}$) only after the supervisor review gate; those results
 will inform optimal hyperparameter selection for the intervention.
-Third, our evaluation domain is MATH L3--5 (and L5 only for the difficulty
+Fourth, our evaluation domain is MATH L3--5 (and L5 only for the difficulty
 ablation), a closed-form setting where ground truth is unambiguous.
 This choice is deliberate: we study collapse where it is measurable, so that
 its existence is established under controlled conditions.
@@ -896,6 +1125,10 @@ Injection works by distilling ground-truth signal directly into the
 self-verifier: a small, targeted dose of ground truth applied to the model's
 most confident mistakes captures most of the benefit of continuous GT
 supervision, without replacing the self-improving loop.
+Moreover, injection is not only preventive but corrective: applied to a
+model that has already undergone 20 iterations of unchecked collapse
+($\Delta_{20} = 0.32$), it reduces the gap to $0.20$ within 20 recovery
+iterations---a 37\% reduction from the collapsed state.
 The practical implication is direct: any self-improving system should
 instrument $\Delta_t$ explicitly, and any system that aspires to operate in
 non-verifiable domains should ask whether its self-verifier has been grounded
@@ -907,14 +1140,5 @@ at every iteration.
 % ============================================================
 \bibliographystyle{plainnat}
 \bibliography{refs}
-
-% ---- placeholder refs (move to refs.bib) ----
-% @article{zelikman2022star,...}
-% @article{yuan2024self,...}
-% @article{zhao2025azr,...}  % Absolute Zero Reasoner — Zhao et al. (Tsinghua/BIGAI/Penn State), NeurIPS 2025
-% @article{hendrycks2021math,...}
-% @article{qwen2025,...}
-% @article{dao2023flashattention2,...}
-% @article{gao2023scaling,...}  % RM overoptimization
 
 \end{document}

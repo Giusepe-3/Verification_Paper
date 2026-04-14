@@ -1,88 +1,40 @@
-@article{zelikman2022star,
+% ============================================================
+% refs.bib — Verification Collapse (NeurIPS 2026 submission)
+% Last verified: April 2026
+% ============================================================
+
+% --- Core self-improvement baselines ---
+
+@inproceedings{zelikman2022star,
   title     = {{STaR}: Bootstrapping Reasoning With Reasoning},
   author    = {Zelikman, Eric and Wu, Yuhuai and Mu, Jesse and Goodman, Noah D.},
-  journal   = {Advances in Neural Information Processing Systems},
+  booktitle = {Advances in Neural Information Processing Systems},
   volume    = {35},
   year      = {2022}
 }
 
 @article{yuan2024self,
-  title     = {Self-Rewarding Language Models},
-  author    = {Yuan, Weizhe and Pang, Richard Yuanzhe and Cho, Kyunghyun and Suber, Xian Li and Weston, Jason and others},
-  journal   = {arXiv preprint arXiv:2401.10020},
-  year      = {2024}
+  title   = {Self-Rewarding Language Models},
+  author  = {Yuan, Weizhe and Pang, Richard Yuanzhe and Cho, Kyunghyun and Li, Xian and Weston, Jason and others},
+  journal = {arXiv preprint arXiv:2401.10020},
+  year    = {2024}
 }
 
-@article{deepseek2025azr,
-  title     = {Absolute Zero: Reinforced Self-play Reasoning with Zero Data},
-  author    = {Zhao, Andrew and Wu, Yiran and Yue, Yang and Wu, Tong and Xu, Quentin and Lin, Yang and others},
-  journal   = {arXiv preprint arXiv:2505.03335},
-  year      = {2025}
-}
-
-@article{hendrycks2021math,
-  title     = {Measuring Mathematical Problem Solving With the {MATH} Dataset},
-  author    = {Hendrycks, Dan and Burns, Collin and Kadavath, Saurav and Arora, Akul and Basart, Steven and Tang, Eric and Song, Dawn and Steinhardt, Jacob},
-  journal   = {Advances in Neural Information Processing Systems},
-  volume    = {34},
-  year      = {2021}
-}
-
-@article{qwen2025,
-  title     = {Qwen2.5 Technical Report},
-  author    = {Qwen Team},
-  journal   = {arXiv preprint arXiv:2412.15115},
-  year      = {2025}
-}
-
-@inproceedings{dao2023flashattention2,
-  title     = {{FlashAttention-2}: Faster Attention with Better Parallelism and Work Partitioning},
-  author    = {Dao, Tri},
-  booktitle = {International Conference on Learning Representations},
-  year      = {2024}
-}
-
-@article{gao2023scaling,
-  title     = {Scaling Laws for Reward Model Overoptimization},
-  author    = {Gao, Leo and Schulman, John and Hilton, Jacob},
-  journal   = {arXiv preprint arXiv:2210.10760},
-  year      = {2023}
+@article{zhao2025azr,
+  title   = {Absolute Zero: Reinforced Self-play Reasoning with Zero Data},
+  author  = {Zhao, Andrew and Wu, Yiran and Yue, Yang and Wu, Tong and Xu, Quentin and Lin, Matthieu and Wang, Shenzhi and Wu, Qingyun and Zheng, Zilong and Huang, Gao},
+  journal = {arXiv preprint arXiv:2505.03335},
+  year    = {2025}
 }
 
 @article{gulcehre2023rest,
-  title     = {Reinforced Self-Training ({ReST}) for Language Modeling},
-  author    = {G\"{u}l\c{c}ehre, \c{C}aglar and Paine, Tom Le and Srinivasan, Srivatsan and Konyushkova, Ksenia and Weerts, Lotte and Sharma, Abhishek and Siddhant, Aditya and Ahern, Alex and Wang, Miaosen and Gu, Chenjie and others},
-  journal   = {arXiv preprint arXiv:2308.08998},
-  year      = {2023}
+  title   = {Reinforced Self-Training ({ReST}) for Language Modeling},
+  author  = {G\"{u}l\c{c}ehre, \c{C}aglar and Paine, Tom Le and Srinivasan, Srivatsan and Konyushkova, Ksenia and Weerts, Lotte and Sharma, Abhishek and Siddhant, Aditya and Ahern, Alex and Wang, Miaosen and Gu, Chenjie and others},
+  journal = {arXiv preprint arXiv:2308.08998},
+  year    = {2023}
 }
 
-@article{song2025mindthegap,
-  title     = {Mind the Gap: Exploring the Disconnect Between Self-Verification and External Evaluation in Language Models},
-  author    = {Song, Feifan and Yu, Bowen and Li, Hao and Yu, Hao},
-  journal   = {arXiv preprint arXiv:2412.02674},
-  year      = {2025}
-}
-
-@article{huang2025beyondaccuracy,
-  title     = {Beyond Accuracy: The Role of Calibration in Self-Improving Large Language Models},
-  author    = {Huang, Liangjie and Li, Dawei and Liu, Huan and Cheng, Lu},
-  journal   = {arXiv preprint arXiv:2504.02902},
-  year      = {2025}
-}
-
-@article{epicar2026,
-  title     = {{EpiCaR}: Knowing What You Don't Know Matters for Better Reasoning in {LLMs}},
-  author    = {Yeom, Jewon and Sok, Jaewon and Park, Seonghyeon and Park, Jeongjae and Kim, Taesup},
-  journal   = {arXiv preprint arXiv:2601.06786},
-  year      = {2026}
-}
-
-@article{rlsr2025,
-  title     = {{RLSR}: Reinforcement Learning from Self Reward},
-  author    = {Simonds, Toby and Lopez, Kevin and Yoshiyama, Akira and Garmier, Dominique},
-  journal   = {arXiv preprint arXiv:2505.08827},
-  year      = {2025}
-}
+% --- Self-correction / self-verification ---
 
 @inproceedings{huang2024cannot,
   title     = {Large Language Models Cannot Self-Correct Reasoning Yet},
@@ -99,39 +51,112 @@
   year      = {2023}
 }
 
-@article{bai2022constitutional,
-  title     = {Constitutional {AI}: Harmlessness from {AI} Feedback},
-  author    = {Bai, Yuntao and Kadavath, Saurav and Kundu, Sandipan and Askell, Amanda and Kernion, Jackson and Jones, Andy and Chen, Anna and Goldie, Anna and Mirhoseini, Azalia and McKinnon, Cameron and Chen, Carol and Olah, Christopher and Hernandez, Danny and Drain, Dawn and Ganguli, Deep and Li, Dustin and Tran-Johnson, Eli and Perez, Ethan and Kerr, Jamie and Mueller, Jared and Landau, Joshua and Ndousse, Kamal and Lukosiute, Kamile and Lovitt, Liane and Sellitto, Michael and Elhage, Nelson and Schiefer, Nicholas and Mercado, Noemi and DasSarma, Nova and Lasenby, Robert and Larson, Robin and Ringer, Sam and Johnston, Scott and Kravec, Shauna and Showk, Sheer El and Fort, Stanislav and Lanham, Tamera and Telleen-Lawton, Timothy and Conerly, Tom and Henighan, Tom and Hume, Tristan and Bowman, Samuel R. and Hatfield-Dodds, Zac and Mann, Ben and Amodei, Dario and Joseph, Nicholas and McCandlish, Sam and Brown, Tom and Kaplan, Jared},
-  journal   = {arXiv preprint arXiv:2212.08073},
-  year      = {2022}
+% --- Reward model overoptimization ---
+
+@article{gao2023scaling,
+  title   = {Scaling Laws for Reward Model Overoptimization},
+  author  = {Gao, Leo and Schulman, John and Hilton, Jacob},
+  journal = {arXiv preprint arXiv:2210.10760},
+  year    = {2023}
 }
 
-@article{llama3team2024,
-  title     = {The {Llama} 3 Herd of Models},
-  author    = {{Meta AI}},
-  journal   = {arXiv preprint arXiv:2407.21783},
-  year      = {2024}
-}
+% --- Generation-verification gap (Mind the Gap) ---
 
-@inproceedings{yuan2026solververifier,
-  title     = {Theoretical Modeling of {LLM} Self-Improvement Training Dynamics Through Solver-Verifier Gap},
-  author    = {Yuan, Weizhe and others},
+@inproceedings{song2025mindthegap,
+  title     = {Mind the Gap: Examining the Self-Improvement Capabilities of Large Language Models},
+  author    = {Song, Yuda and Zhang, Hanlin and Eisenach, Carson and Kakade, Sham and Foster, Dean and Ghai, Udaya},
   booktitle = {International Conference on Learning Representations},
-  year      = {2026},
-  note      = {arXiv preprint arXiv:2507.00075}
+  year      = {2025},
+  note      = {arXiv:2412.02674}
 }
+
+% --- Concurrent calibration work ---
+
+@article{huang2025beyondaccuracy,
+  title   = {Beyond Accuracy: The Role of Calibration in Self-Improving Large Language Models},
+  author  = {Huang, Liangjie and Li, Dawei and Liu, Huan and Cheng, Lu},
+  journal = {arXiv preprint arXiv:2504.02902},
+  year    = {2025}
+}
+
+@article{epicar2026,
+  title   = {{EpiCaR}: Knowing What You Don't Know Matters for Better Reasoning in {LLMs}},
+  author  = {Yeom, Jewon and Sok, Jaewon and Park, Seonghyeon and Park, Jeongjae and Kim, Taesup},
+  journal = {arXiv preprint arXiv:2601.06786},
+  year    = {2026}
+}
+
+@article{rlsr2025,
+  title   = {{RLSR}: Reinforcement Learning from Self Reward},
+  author  = {Simonds, Toby and Lopez, Kevin and Yoshiyama, Akira and Garmier, Dominique},
+  journal = {arXiv preprint arXiv:2505.08827},
+  year    = {2025}
+}
+
+% --- Theoretical complement ---
+
+@article{sun2025solververifier,
+  title   = {Theoretical Modeling of Large Language Model Self-Improvement Training Dynamics Through Solver-Verifier Gap},
+  author  = {Sun, Yifan and Liang, Yushan and Zhang, Zhen and Liu, Xin and Teng, Jiaye},
+  journal = {arXiv preprint arXiv:2507.00075},
+  year    = {2025}
+}
+
+% --- Learning from failure / negative examples ---
 
 @inproceedings{wang2024learningfromfailure,
   title     = {Learning From Failure: Integrating Negative Examples when Fine-tuning {LLMs} as Agents},
   author    = {Wang, Renxi and Li, Haonan and Han, Xudong and Yu, Yixuan and Baldwin, Timothy},
   booktitle = {Proceedings of the 2025 Conference of the North American Chapter of the Association for Computational Linguistics},
   year      = {2025},
-  note      = {arXiv preprint arXiv:2402.11651}
+  note      = {arXiv:2402.11651}
+}
+
+% --- Models ---
+
+@article{qwen2025,
+  title   = {Qwen2.5 Technical Report},
+  author  = {{Qwen Team}},
+  journal = {arXiv preprint arXiv:2412.15115},
+  year    = {2025}
 }
 
 @article{jiang2023mistral,
-  title     = {Mistral {7B}},
-  author    = {Jiang, Albert Q. and Sablayrolles, Alexandre and Mensch, Arthur and Bamford, Chris and Chaplot, Devendra Singh and de las Casas, Diego and Bressand, Florian and Lengyel, Gianna and Lample, Guillaume and Saulnier, Lucile and Renard Lavaud, L{\'e}lio and Lachaux, Marie-Anne and Stock, Pierre and Le Scao, Teven and Lavril, Thibaut and Wang, Thomas and Lacroix, Timoth{\'e}e and El Sayed, William},
-  journal   = {arXiv preprint arXiv:2310.06825},
-  year      = {2023}
+  title   = {Mistral {7B}},
+  author  = {Jiang, Albert Q. and Sablayrolles, Alexandre and Mensch, Arthur and Bamford, Chris and Chaplot, Devendra Singh and de las Casas, Diego and Bressand, Florian and Lengyel, Gianna and Lample, Guillaume and Saulnier, Lucile and Renard Lavaud, L{\'e}lio and Lachaux, Marie-Anne and Stock, Pierre and Le Scao, Teven and Lavril, Thibaut and Wang, Thomas and Lacroix, Timoth{\'e}e and El Sayed, William},
+  journal = {arXiv preprint arXiv:2310.06825},
+  year    = {2023}
+}
+
+@article{llama3team2024,
+  title   = {The {Llama} 3 Herd of Models},
+  author  = {{Meta AI}},
+  journal = {arXiv preprint arXiv:2407.21783},
+  year    = {2024}
+}
+
+% --- Datasets and infrastructure ---
+
+@inproceedings{hendrycks2021math,
+  title     = {Measuring Mathematical Problem Solving With the {MATH} Dataset},
+  author    = {Hendrycks, Dan and Burns, Collin and Kadavath, Saurav and Arora, Akul and Basart, Steven and Tang, Eric and Song, Dawn and Steinhardt, Jacob},
+  booktitle = {Advances in Neural Information Processing Systems},
+  volume    = {34},
+  year      = {2021}
+}
+
+@inproceedings{dao2023flashattention2,
+  title     = {{FlashAttention-2}: Faster Attention with Better Parallelism and Work Partitioning},
+  author    = {Dao, Tri},
+  booktitle = {International Conference on Learning Representations},
+  year      = {2024}
+}
+
+% --- Constitutional AI / RLHF ---
+
+@article{bai2022constitutional,
+  title   = {Constitutional {AI}: Harmlessness from {AI} Feedback},
+  author  = {Bai, Yuntao and Kadavath, Saurav and Kundu, Sandipan and Askell, Amanda and Kernion, Jackson and Jones, Andy and Chen, Anna and Goldie, Anna and Mirhoseini, Azalia and McKinnon, Cameron and others},
+  journal = {arXiv preprint arXiv:2212.08073},
+  year    = {2022}
 }
