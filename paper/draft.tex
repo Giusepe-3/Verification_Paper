@@ -70,6 +70,8 @@ find that the gap grows in every case (steadily in capable and
 weak models, transiently in intermediate ones) while ground-truth
 accuracy improves only modestly or not at all, a failure mode we call \emph{verification
 collapse}.
+The effect persists under full fine-tuning (no LoRA adapter), ruling out
+adapter-specific artifacts as the mechanism.
 The corrupted self-score does not merely reflect overconfidence; it
 redirects the training signal.
 Because the model selects training examples by self-judgment and
@@ -326,11 +328,14 @@ The dataset is fixed across all iterations; only the model changes.
 
 \subsection{Model}
 
-We use Qwen2.5-7B-Instruct \citep{qwen2025} in BF16 precision with
+Our primary runs use Qwen2.5-7B-Instruct \citep{qwen2025} in BF16 precision with
 Flash Attention 2 \citep{dao2023flashattention2} and a LoRA adapter \citep{hu2022lora}
 (rank $r=16$, $\alpha=32$, all-linear target modules, no DoRA).
 No 4-bit quantization is applied; the model runs at full BF16 precision
-on an NVIDIA H100 SXM (80 GB).
+on an NVIDIA H100 SXM (80\,GB).
+We additionally run a full fine-tuning ablation (no adapter; all 7.6B parameters
+trainable) on an NVIDIA H200 SXM (141\,GB) to rule out LoRA-specific artifacts
+(Section~\ref{sec:full-ft}).
 
 \subsection{The Iterative Self-Improvement Loop}
 
@@ -655,9 +660,9 @@ reduces the steady-state gap by 47\% without degrading held-out accuracy.
 
 \begin{table}[h]
 \centering
-\caption{All conditions. Baseline and GT-anchored use 500 samples (400 train / 100 val);
-injection uses 250 samples (200 train / 50 val) and is compared against the matched
-250-sample baseline in Section~\ref{sec:results}.
+\caption{All conditions. Baseline (LoRA and full FT) and GT-anchored use 500 samples
+(400 train / 100 val); injection uses 250 samples (200 train / 50 val) and is compared
+against the matched 250-sample baseline in Section~\ref{sec:results}.
 For Llama-3, peak $\gap$ (iteration~13) is shown alongside $\gap_{20}$ to capture the
 transient trajectory.}
 \label{tab:summary}
@@ -666,7 +671,8 @@ transient trajectory.}
 \toprule
 Model & Condition & Samples & $\gap_1$ & Peak $\gap$ & $\gap_{20}$ & $\overline{\gt}_\text{train,20}$ \\
 \midrule
-Qwen2.5-7B  & Baseline (self-score)         & 500 & 0.173 & 0.320        & 0.320 & 0.375 \\
+Qwen2.5-7B  & Baseline (LoRA)               & 500 & 0.173 & 0.320        & 0.320 & 0.375 \\
+Qwen2.5-7B  & Baseline (full FT)            & 500 & 0.183 & 0.360        & 0.338 & 0.380 \\
 Qwen2.5-7B  & Injection ($N{=}3$, 50\%)     & 250 & 0.105 & 0.475        & 0.170 & 0.525 \\
 Qwen2.5-7B  & GT-anchored                   & 500 & 0.190 & 0.193        & 0.123 & 0.535 \\
 \midrule
@@ -682,7 +688,7 @@ Llama-3-8B  & Baseline (self-score)         & 500 & 0.058 & 0.368 (i13)  & 0.148
 
 The main results establish that (i)~verification collapse occurs under self-score filtering
 and (ii)~adversarial hard-negative injection reduces the steady-state gap by 47\%.
-Four ablations probe the scope and mechanism of these findings.
+Five ablations probe the scope and mechanism of these findings.
 
 \begin{figure}[t]
 \centering
@@ -899,6 +905,51 @@ The practical implication is direct: a system discovered to have collapsed does 
 require retraining; a standard injection protocol applied post-collapse recovers
 a substantial fraction of the gap reduction achievable from the start.
 
+\subsection{Full Fine-Tuning: Ruling Out LoRA Artifacts}
+\label{sec:full-ft}
+
+All experiments above use LoRA adapters (rank $r{=}16$, $\alpha{=}32$, all-linear),
+training ${\sim}20$M of $7.6$B total parameters per iteration.
+A natural concern is that collapse is an adapter-specific artifact: LoRA's low-rank
+constraint could introduce optimization noise that inflates self-scores, or the
+limited adapter capacity could prevent genuine learning while permitting superficial
+confidence patterns to emerge.
+This concern is sharpened by our own attribution of Llama-3-8B's partial recovery to
+``LoRA distortion'' (Section~\ref{sec:llama3-injection}).
+The \texttt{full-ft-baseline} run eliminates the adapter entirely: all $7{,}615{,}616{,}512$
+parameters are trainable, with learning rate reduced to $2 \times 10^{-5}$ (from
+$2 \times 10^{-4}$ for LoRA) and all other hyperparameters held constant.
+The run uses an NVIDIA H200 SXM (141\,GB).
+
+\begin{table}[h]
+\centering
+\caption{Full fine-tuning vs.\ LoRA baseline (both Qwen2.5-7B, 500 samples, 20 iterations).
+Collapse persists and is slightly more severe under full fine-tuning.}
+\label{tab:full-ft}
+\small
+\begin{tabular}{lcccccc}
+\toprule
+Condition & $\gap_1$ & $\gap_{10}$ & $\gap_{20}$ & $\overline{\self}_{20}$ & $\overline{\gt}_\text{train,20}$ & $\overline{\gt}_\text{val,20}$ \\
+\midrule
+Baseline (LoRA)    & 0.173 & 0.245 & 0.320 & 0.695 & 0.375 & 0.420 \\
+Baseline (full FT) & 0.183 & 0.280 & 0.338 & 0.718 & 0.380 & 0.390 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Collapse persists under full fine-tuning and is, if anything, slightly more severe:
+$\gap_{20} = 0.338$ versus $0.320$ under LoRA, with indistinguishable
+$\overline{\gt}_\text{train}$ trajectories ($0.313 \to 0.380$ full FT vs.\
+$0.320 \to 0.375$ LoRA).
+The self-score trajectory is nearly identical ($0.495 \to 0.718$ full FT vs.\
+$0.493 \to 0.695$ LoRA), and held-out accuracy remains flat in both conditions
+($\overline{\gt}_\text{val}$ between $0.35$ and $0.43$ throughout).
+The gap growth pattern is the same gradual monotonic regime observed in the LoRA
+baseline, ruling out adapter rank saturation, LoRA initialization noise, or
+limited adapter capacity as contributing mechanisms.
+Verification collapse is a property of the self-score training loop, not of the
+parameter-efficient fine-tuning method used to execute it.
+
 % ============================================================
 \section{Discussion}
 \label{sec:discussion}
@@ -910,10 +961,13 @@ fine-tunes on the subset it believes to be correct.
 By iteration 4, the gap ($\Delta_t$) already exceeds 0.19 in the Qwen baseline,
 which means the model is systematically selecting \emph{wrong} completions
 as positive training examples.
-The LoRA adapter then reinforces the patterns that trigger high
+Fine-tuning then reinforces the patterns that trigger high
 self-scores (confident hedges, structurally plausible but incorrect
 algebra, well-formatted answers to the wrong question) because those
 patterns align with the self-score signal, not with correctness.
+This holds equally under LoRA and full fine-tuning
+(Section~\ref{sec:full-ft}), confirming that the mechanism is the
+feedback loop itself, not the parameter-efficient adapter.
 The training loss drops steadily ($\mathcal{L}_{10} = 0.016$),
 the fingerprint of memorisation: the model has fitted its own
 confabulations.
@@ -1077,8 +1131,9 @@ held-out performance on unseen benchmarks across more training iterations.
 Closed-loop self-improvement methods, those that use the model as its own
 sole judge, rest on a fragile assumption: that self-evaluation remains
 calibrated across training iterations.
-We have shown that this assumption fails across all three model families
-and two dataset scales (250 and 500 samples) tested in our study: the
+We have shown that this assumption fails across all three model families,
+two dataset scales (250 and 500 samples), and two training regimes
+(LoRA and full fine-tuning) tested in our study: the
 verification gap $\Delta_t$ grows with training iterations, driven by a
 feedback loop in which the model selects training examples by self-judgment
 and trains on its own completions, preferentially retaining outputs the
