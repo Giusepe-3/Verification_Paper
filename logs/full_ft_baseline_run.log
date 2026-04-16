@@ -1,0 +1,191 @@
+nohup: ignoring input
+flash-attn not found — falling back to sdpa attention.
+Loading MATH …
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Generating train split:   0%|          | 0/1744 [00:00<?, ? examples/s]Generating train split: 100%|██████████| 1744/1744 [00:00<00:00, 316469.07 examples/s]
+Generating test split:   0%|          | 0/1187 [00:00<?, ? examples/s]Generating test split: 100%|██████████| 1187/1187 [00:00<00:00, 378258.54 examples/s]
+Generating train split:   0%|          | 0/771 [00:00<?, ? examples/s]Generating train split: 100%|██████████| 771/771 [00:00<00:00, 286659.73 examples/s]
+Generating test split:   0%|          | 0/474 [00:00<?, ? examples/s]Generating test split: 100%|██████████| 474/474 [00:00<00:00, 253228.90 examples/s]
+Generating train split:   0%|          | 0/870 [00:00<?, ? examples/s]Generating train split: 100%|██████████| 870/870 [00:00<00:00, 226283.30 examples/s]
+Generating test split:   0%|          | 0/479 [00:00<?, ? examples/s]Generating test split: 100%|██████████| 479/479 [00:00<00:00, 216798.49 examples/s]
+Generating train split:   0%|          | 0/1295 [00:00<?, ? examples/s]Generating train split: 100%|██████████| 1295/1295 [00:00<00:00, 314311.88 examples/s]
+Generating test split:   0%|          | 0/903 [00:00<?, ? examples/s]Generating test split: 100%|██████████| 903/903 [00:00<00:00, 298554.04 examples/s]
+Generating train split:   0%|          | 0/869 [00:00<?, ? examples/s]Generating train split: 100%|██████████| 869/869 [00:00<00:00, 344536.36 examples/s]
+Generating test split:   0%|          | 0/540 [00:00<?, ? examples/s]Generating test split: 100%|██████████| 540/540 [00:00<00:00, 277088.84 examples/s]
+Generating train split:   0%|          | 0/1205 [00:00<?, ? examples/s]Generating train split: 100%|██████████| 1205/1205 [00:00<00:00, 458258.80 examples/s]
+Generating test split:   0%|          | 0/871 [00:00<?, ? examples/s]Generating test split: 100%|██████████| 871/871 [00:00<00:00, 470960.27 examples/s]
+Generating train split:   0%|          | 0/746 [00:00<?, ? examples/s]Generating train split: 100%|██████████| 746/746 [00:00<00:00, 200470.96 examples/s]
+Generating test split:   0%|          | 0/546 [00:00<?, ? examples/s]Generating test split: 100%|██████████| 546/546 [00:00<00:00, 171272.90 examples/s]
+Filter:   0%|          | 0/7500 [00:00<?, ? examples/s]Filter: 100%|██████████| 7500/7500 [00:00<00:00, 280200.59 examples/s]
+  Train: 400  Val: 100
+Loading model …
+Loading weights:   0%|          | 0/339 [00:00<?, ?it/s]Loading weights: 100%|██████████| 339/339 [00:00<00:00, 13400.46it/s]
+Full fine-tuning: 7,615,616,512 / 7,615,616,512 parameters trainable
+
+============================================================
+  Iteration 1/20
+============================================================
+  Generating predictions …
+The following generation flags are not valid and may be ignored: ['temperature', 'top_p', 'top_k']. Set `TRANSFORMERS_VERBOSITY=info` for more details.
+  Fine-tuning on 198/400 self-judged-correct examples …
+/usr/local/lib/python3.11/dist-packages/torch/utils/checkpoint.py:1399: FutureWarning: `torch.cpu.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cpu', args...)` instead.
+  with device_autocast_ctx, torch.cpu.amp.autocast(**cpu_autocast_kwargs), recompute_context:  # type: ignore[attr-defined]
+  Evaluating on val set …
+  gap=0.1825  self=0.4950  gt_train=0.3125  gt_val=0.3800  loss=0.0763  hard_negs=75
+
+============================================================
+  Iteration 2/20
+============================================================
+  Generating predictions …
+  Fine-tuning on 209/400 self-judged-correct examples …
+  Evaluating on val set …
+  gap=0.1925  self=0.5225  gt_train=0.3300  gt_val=0.4600  loss=0.0390  hard_negs=84
+
+============================================================
+  Iteration 3/20
+============================================================
+  Generating predictions …
+  Fine-tuning on 226/400 self-judged-correct examples …
+  Evaluating on val set …
+  gap=0.2150  self=0.5650  gt_train=0.3500  gt_val=0.3500  loss=0.0269  hard_negs=90
+
+============================================================
+  Iteration 4/20
+============================================================
+  Generating predictions …
+  Fine-tuning on 222/400 self-judged-correct examples …
+  Evaluating on val set …
+  gap=0.2000  self=0.5550  gt_train=0.3550  gt_val=0.4500  loss=0.0186  hard_negs=85
+
+============================================================
+  Iteration 5/20
+============================================================
+  Generating predictions …
+  Fine-tuning on 249/400 self-judged-correct examples …
+  Evaluating on val set …
+  gap=0.2650  self=0.6225  gt_train=0.3575  gt_val=0.4000  loss=0.0157  hard_negs=109
+
+============================================================
+  Iteration 6/20
+============================================================
+  Generating predictions …
+  Fine-tuning on 244/400 self-judged-correct examples …
+  Evaluating on val set …
+  gap=0.2725  self=0.6100  gt_train=0.3375  gt_val=0.3700  loss=0.0161  hard_negs=110
+
+============================================================
+  Iteration 7/20
+============================================================
+  Generating predictions …
+  Fine-tuning on 254/400 self-judged-correct examples …
+  Evaluating on val set …
+  gap=0.2675  self=0.6350  gt_train=0.3675  gt_val=0.4000  loss=0.0217  hard_negs=107
+
+============================================================
+  Iteration 8/20
+============================================================
+  Generating predictions …
+  Fine-tuning on 229/400 self-judged-correct examples …
+  Evaluating on val set …
+  gap=0.2475  self=0.5725  gt_train=0.3250  gt_val=0.4100  loss=0.0236  hard_negs=100
+
+============================================================
+  Iteration 9/20
+============================================================
+  Generating predictions …
+  Fine-tuning on 253/400 self-judged-correct examples …
+  Evaluating on val set …
+  gap=0.2625  self=0.6325  gt_train=0.3700  gt_val=0.3700  loss=0.0169  hard_negs=106
+
+============================================================
+  Iteration 10/20
+============================================================
+  Generating predictions …
+  Fine-tuning on 257/400 self-judged-correct examples …
+  Evaluating on val set …
+  gap=0.2800  self=0.6425  gt_train=0.3625  gt_val=0.4300  loss=0.0156  hard_negs=117
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:20<00:00, 20.44s/it]Writing model shards: 100%|██████████| 1/1 [00:20<00:00, 20.44s/it]
+Checkpoint saved → models/full_ft_baseline/iter_010
+
+============================================================
+  Iteration 11/20
+============================================================
+  Generating predictions …
+  Fine-tuning on 266/400 self-judged-correct examples …
+  Evaluating on val set …
+  gap=0.2850  self=0.6650  gt_train=0.3800  gt_val=0.4000  loss=0.0132  hard_negs=115
+
+============================================================
+  Iteration 12/20
+============================================================
+  Generating predictions …
+  Fine-tuning on 264/400 self-judged-correct examples …
+  Evaluating on val set …
+  gap=0.3025  self=0.6600  gt_train=0.3575  gt_val=0.3900  loss=0.0102  hard_negs=123
+
+============================================================
+  Iteration 13/20
+============================================================
+  Generating predictions …
+  Fine-tuning on 274/400 self-judged-correct examples …
+  Evaluating on val set …
+  gap=0.2950  self=0.6850  gt_train=0.3900  gt_val=0.3500  loss=0.0075  hard_negs=119
+
+============================================================
+  Iteration 14/20
+============================================================
+  Generating predictions …
+  Fine-tuning on 277/400 self-judged-correct examples …
+  Evaluating on val set …
+  gap=0.3225  self=0.6925  gt_train=0.3700  gt_val=0.3900  loss=0.0060  hard_negs=130
+
+============================================================
+  Iteration 15/20
+============================================================
+  Generating predictions …
+  Fine-tuning on 286/400 self-judged-correct examples …
+  Evaluating on val set …
+  gap=0.3300  self=0.7150  gt_train=0.3850  gt_val=0.3600  loss=0.0057  hard_negs=132
+
+============================================================
+  Iteration 16/20
+============================================================
+  Generating predictions …
+  Fine-tuning on 284/400 self-judged-correct examples …
+  Evaluating on val set …
+  gap=0.3400  self=0.7100  gt_train=0.3700  gt_val=0.3900  loss=0.0077  hard_negs=137
+
+============================================================
+  Iteration 17/20
+============================================================
+  Generating predictions …
+  Fine-tuning on 295/400 self-judged-correct examples …
+  Evaluating on val set …
+  gap=0.3600  self=0.7375  gt_train=0.3775  gt_val=0.3400  loss=0.0050  hard_negs=144
+
+============================================================
+  Iteration 18/20
+============================================================
+  Generating predictions …
+  Fine-tuning on 281/400 self-judged-correct examples …
+  Evaluating on val set …
+  gap=0.3275  self=0.7025  gt_train=0.3750  gt_val=0.3700  loss=0.0067  hard_negs=132
+
+============================================================
+  Iteration 19/20
+============================================================
+  Generating predictions …
+  Fine-tuning on 297/400 self-judged-correct examples …
+  Evaluating on val set …
+  gap=0.3600  self=0.7425  gt_train=0.3825  gt_val=0.3700  loss=0.0034  hard_negs=146
+
+============================================================
+  Iteration 20/20
+============================================================
+  Generating predictions …
+  Fine-tuning on 287/400 self-judged-correct examples …
+  Evaluating on val set …
+  gap=0.3375  self=0.7175  gt_train=0.3800  gt_val=0.3900  loss=0.0043  hard_negs=136
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:22<00:00, 22.59s/it]Writing model shards: 100%|██████████| 1/1 [00:22<00:00, 22.59s/it]
+Checkpoint saved → models/full_ft_baseline/iter_020
+Metrics saved → logs/full_ft_baseline/metrics.csv
