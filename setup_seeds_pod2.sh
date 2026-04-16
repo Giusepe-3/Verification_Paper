@@ -27,6 +27,7 @@ grep -vE '^(torch|flash-attn|bitsandbytes|nvidia-)' requirements.txt \
       -c /tmp/torch_pin.txt \
       --constraint <(pip list --format=freeze | grep '^nvidia-')
 pip uninstall flash-attn bitsandbytes -y 2>/dev/null || true
+pip install peft==0.12.0 -q  # newer peft needs torch>=2.5; pods ship 2.4.1
 
 # --- Post-install CUDA check ---
 python3 - <<'POSTCHECK'
