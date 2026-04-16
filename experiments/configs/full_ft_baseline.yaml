@@ -1,0 +1,75 @@
+## Full Fine-Tuning Baseline — Qwen2.5-7B, MATH L3-5, 500 problems, 20 iters
+##
+## Key differences from baseline_500.yaml:
+##   - lora.enabled: false — trains ALL 7B parameters, not a 20M LoRA adapter
+##   - learning_rate: 2e-5 (10x lower — standard for full FT)
+##   - optimizer: adamw (standard PyTorch, no bitsandbytes needed)
+##
+## Purpose:
+##   Address top reviewer rejection vector: "all collapse results could be
+##   LoRA adapter noise." If collapse persists under full fine-tuning,
+##   LoRA confound is eliminated. Estimated +10-15% acceptance probability.
+##
+## Target hardware: NVIDIA H200 141GB (RunPod)
+##   Static memory: ~56 GB (model 14 + grads 14 + Adam m+v 28)
+##   Headroom: ~85 GB for activations + KV cache
+##   gen_batch_size=128 fits comfortably.
+
+model:
+  name: "Qwen/Qwen2.5-7B-Instruct"
+  quantization:
+    load_in_4bit: false
+    bnb_4bit_quant_type: "nf4"
+    bnb_4bit_compute_dtype: "bfloat16"
+    bnb_4bit_use_double_quant: true
+
+lora:
+  enabled: false
+  r: 16
+  lora_alpha: 32
+  target_modules: "all-linear"
+  lora_dropout: 0.05
+  bias: "none"
+  use_dora: false
+  task_type: "CAUSAL_LM"
+
+training:
+  learning_rate: 2.0e-5
+  lr_scheduler_type: "cosine"
+  warmup_ratio: 0.05
+  per_device_train_batch_size: 4
+  gradient_accumulation_steps: 8
+  num_train_epochs: 1
+  max_grad_norm: 1.0
+  optimizer: "adamw"
+  gradient_checkpointing: true
+  bf16: true
+  logging_steps: 5
+  save_strategy: "no"
+  gen_batch_size: 128
+
+data:
+  dataset_name: "EleutherAI/hendrycks_math"
+  dataset_config: null
+  level_filter: [3, 4, 5]
+  subset_size: 500
+  train_ratio: 0.8
+  max_seq_length: 1024
+  max_new_tokens: 512
+  seed: 42
+  cache_path: "data/math_subset_500.json"
+
+experiment:
+  num_iterations: 20
+  hard_negative_injection_interval: 9999   # disabled — pure baseline
+  hard_negative_ratio: 0.0
+  confidence_threshold: 0.7
+  checkpoint_interval: 10
+  output_dir: "models/full_ft_baseline"
+  log_dir: "logs/full_ft_baseline"
+
+wandb:
+  enabled: false
+  project: "rsi-verification-collapse"
+  entity: null
+  tags: ["qwen2.5-7b-instruct", "math-l3-5", "full-ft", "baseline", "500-samples", "no-injection", "h200"]

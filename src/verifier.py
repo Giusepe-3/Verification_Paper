@@ -71,11 +71,14 @@ class ModelVerifier:
         torch.backends.cudnn.allow_tf32 = True
 
         self._load_model()
+        self.use_lora = config.get("lora", {}).get("enabled", True)
         init_ckpt = config.get("model", {}).get("init_checkpoint")
         if init_ckpt:
             self._load_checkpoint_as_adapter(init_ckpt)
-        else:
+        elif self.use_lora:
             self._attach_lora()
+        else:
+            self._prepare_full_finetune()
         self._build_optimizer()
 
     # ------------------------------------------------------------------
@@ -157,6 +160,17 @@ class ModelVerifier:
         )
         self.model = get_peft_model(self.model, lora_config)
         self.model.print_trainable_parameters()
+
+    def _prepare_full_finetune(self) -> None:
+        """Set up full fine-tuning (no LoRA adapter)."""
+        tcfg = self.config["training"]
+        if tcfg.get("gradient_checkpointing", True):
+            self.model.gradient_checkpointing_enable(
+                gradient_checkpointing_kwargs={"use_reentrant": False}
+            )
+        trainable = sum(p.numel() for p in self.model.parameters() if p.requires_grad)
+        total = sum(p.numel() for p in self.model.parameters())
+        print(f"Full fine-tuning: {trainable:,} / {total:,} parameters trainable")
 
     def _build_optimizer(self) -> None:
         tcfg = self.config["training"]
@@ -378,7 +392,15 @@ class ModelVerifier:
         print(f"Checkpoint saved → {path}")
 
     def load_checkpoint(self, path: str | Path) -> None:
-        from peft import PeftModel
         path = Path(path)
-        self.model = PeftModel.from_pretrained(self.model, str(path))
+        if self.use_lora:
+            from peft import PeftModel
+            self.model = PeftModel.from_pretrained(self.model, str(path))
+        else:
+            self.model = AutoModelForCausalLM.from_pretrained(
+                str(path),
+                trust_remote_code=True,
+                dtype=torch.bfloat16,
+                attn_implementation=_ATTN_IMPL,
+            ).to(self.device)
         print(f"Checkpoint loaded ← {path}")

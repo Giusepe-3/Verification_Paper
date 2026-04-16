@@ -46,3 +46,5 @@ wandb/
 
 # HuggingFace cache
 ~/.cache/huggingface/
+.aidesigner/*
+!.aidesigner/.gitkeep
