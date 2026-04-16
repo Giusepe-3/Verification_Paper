@@ -46,5 +46,12 @@ wandb/
 
 # HuggingFace cache
 ~/.cache/huggingface/
-.aidesigner/*
-!.aidesigner/.gitkeep
+
+# Local tooling
+.agents/
+.aidesigner/
+.claude/
+.mcp.json
+
+# PDFs in repo root
+*.pdf
