@@ -1,154 +1,55 @@
 # Verification Collapse in Iterative Self-Improving Language Models
 
-> **NeurIPS 2026 Submission** · Abstract due May 5 · Paper due May 7, 2026
+Code and paper for an empirical study of how self-verification breaks down when language models train on their own judgments.
+
+**Author:** Leonardo Gianola, University of Southern Denmark.
+**Paper:** [`paper/draft.pdf`](paper/draft.pdf) (23 pages, preprint).
+**DOI:** [10.5281/zenodo.19890194](https://doi.org/10.5281/zenodo.19890194)
 
 ---
 
-## Overview
+## What this is
 
-Self-improving language models are trained to iteratively refine themselves using their own outputs as supervision. A tacit assumption underlying this paradigm is that the model's self-verification signal remains calibrated — that a model which judges itself correct is, in fact, more likely to be correct.
+Self-improving language models (Self-Rewarding LMs, Meta-Rewarding, CREAM) iteratively refine themselves by selecting training examples through their own self-verification. The paradigm rests on one assumption: that self-evaluation stays calibrated against ground truth across training rounds. The same assumption underlies scalable-oversight proposals where a model judges its own outputs in place of human annotation.
 
-**This paper tests and breaks that assumption.**
+This project tests that assumption and shows it fails.
 
-We document a failure mode we call **verification collapse**: in iterative self-improvement loops, the gap between a model's self-assigned verification score and external ground-truth accuracy grows monotonically with training iterations. The model becomes an increasingly confident but increasingly unreliable judge of its own outputs. Crucially, this drift is not accompanied by genuine performance gains — ground-truth accuracy on held-out data remains flat while self-reported confidence climbs.
+We define the **verification gap** at iteration $t$:
 
-We further show that **adversarial hard-negative injection** — periodically reintroducing high-confidence-wrong examples into the fine-tuning batch — slows or bounds this collapse, suggesting a practical mitigation path.
+$$\Delta_t \;=\; \bar{s}^{\text{self}}_t \;-\; \bar{s}^{\text{ext}}_t$$
 
----
+the difference between the model's mean self-assigned correctness score and the mean ground-truth accuracy on the same problems. Running 20 iterations of self-improvement on the MATH benchmark (Level 3-5) across three model families, we find that $\Delta_t$ grows in every case while ground-truth accuracy stays flat or improves only slightly. We call this failure mode **verification collapse**.
 
-## Core Results
-
-### Baseline — Qwen2.5-7B (gradual monotonic collapse)
-
-20-iteration run on **Qwen2.5-7B-Instruct** (BF16, H100 SXM, MATH Level 3–5):
-
-| Iteration | Self-Score | GT Val Accuracy | Gap |
-|:---------:|:----------:|:---------------:|:---:|
-| 1  | 0.465 | 0.400 | 0.105 |
-| 5  | 0.620 | 0.420 | 0.220 |
-| 10 | 0.675 | 0.440 | 0.250 |
-| 15 | 0.750 | 0.440 | 0.295 |
-| 20 | 0.770 | 0.460 | **0.320** |
-
-Gap grew **3× over 20 iterations**. GT validation accuracy flat. Training loss near-zero by iter 10.
-
-### Injection — Qwen2.5-7B (bounded gap)
-
-Same setup with adversarial hard-negative injection every 3 iterations:
-
-- Steady-state gap: **~0.170 at iter 20** (−47% vs baseline)
-- GT val accuracy trends upward to 0.50–0.52 (vs flat 0.38–0.46 in baseline)
-
-### GT-Anchored Control — Qwen2.5-7B (no collapse)
-
-Same loop but fine-tuning filtered on ground-truth correctness instead of self-score:
-
-- Gap **decreases** from 0.190 to 0.122 over 20 iterations
-- GT train accuracy improves **+78%** (0.300 → 0.535)
-- Proves self-scoring is the causal driver of collapse, not iterative fine-tuning per se
-
-### Cross-Model Results
-
-| Model | Regime | Gap at iter 1 | Gap at iter 20 |
-|---|---|---|---|
-| Qwen2.5-7B | Gradual monotonic | 0.105 | 0.320 |
-| Llama-3-8B | Transient (peak iter 13, partial recovery) | 0.058 | 0.148 |
-| Mistral-7B | Immediate lock-in | 0.580 | 0.850 |
-
-Collapse is universal across model families. Severity scales inversely with baseline capability on the domain.
+We further isolate self-scoring as the causal driver (via a GT-anchored control), show the effect persists under full fine-tuning (not a LoRA artifact), and probe the mechanism with **adversarial hard-negative injection**, which cuts the steady-state gap by 47% on a capable model using 85% less ground-truth data than full GT supervision.
 
 ---
 
-## Method
+## Headline results
 
-**Domain:** MATH benchmark (Level 3–5), `EleutherAI/hendrycks_math`
+All runs: 20 iterations, MATH Level 3-5, BF16, greedy decoding.
 
-**Models:** Qwen2.5-7B-Instruct (primary), Llama-3-8B-Instruct, Mistral-7B-Instruct-v0.3
+| Condition | Model | Samples | $\Delta_1$ | Peak $\Delta$ | $\Delta_{20}$ |
+|---|---|---:|---:|---:|---:|
+| Baseline, LoRA | Qwen2.5-7B | 500 | 0.173 | 0.335 (i19) | **0.320** |
+| Baseline, full FT (no LoRA) | Qwen2.5-7B | 500 | 0.183 | 0.360 | **0.338** |
+| Injection ($N{=}3$, 50%) | Qwen2.5-7B | 250 | 0.105 | 0.475 | **0.170** |
+| GT-anchored control | Qwen2.5-7B | 500 | 0.190 | 0.193 | **0.123** |
+| Recovery (from collapsed ckpt) | Qwen2.5-7B | 500 | 0.320 | - | **0.203** |
+| Baseline, self-score | Mistral-7B | 500 | 0.580 | 0.853 | **0.850** |
+| Baseline, self-score | Llama-3-8B | 500 | 0.058 | 0.368 (i13) | **0.148** |
 
-**Training:** BF16, Flash Attention 2, QLoRA (r=16, α=32, all-linear, no DoRA), greedy decoding
+**Four concrete findings:**
 
-**Iterative loop:**
+1. **Three collapse regimes, ordered by base capability.** Capable models (Qwen) drift gradually; moderately capable models (Llama-3) peak and partially recover as self-judgment itself degrades; weak models (Mistral) lock in immediately.
+2. **Self-scoring is the cause, not iterative SFT per se.** The GT-anchored control uses the same loop with ground-truth filtering: the gap *decreases* from 0.190 to 0.123 over 20 iterations.
+3. **Not a LoRA artifact.** Full fine-tuning (all 7.6B params) yields $\Delta_{20} = 0.338$, slightly worse than LoRA's 0.320. Same three-regime shape.
+4. **Injection is preventive and corrective, but capability-gated.** On Qwen it cuts the gap 47%; applied to a collapsed checkpoint it recovers 37% of the damage. On weaker Llama-3 it makes things worse by sustaining confident self-scoring the model would otherwise lose to parameter drift.
 
-```
-for t = 1, 2, ..., T:
-    1. Generate solutions for N training problems
-    2. Self-score: model judges own answer (yes/no) without reference
-    3. GT-score: extract answer, compare to reference
-    4. Fine-tune on problems the model judges correct (self_score > 0)
-    5. Evaluate GT accuracy on held-out validation set
-    6. [Injection variant] Every N iters: inject X% hard negatives
-       (high-confidence-wrong examples trained toward gold solution)
-```
-
-**Key metrics per iteration:**
-
-| Metric | Description |
-|--------|-------------|
-| `self_score_mean` | Fraction judged correct by model (train batch) |
-| `gt_score_train` | Fraction actually correct (train batch, ground truth) |
-| `gt_score_val` | Fraction actually correct (held-out val, ground truth) |
-| `gap` | `self_score_mean − gt_score_train` — the verification gap Δ_t |
-| `loss` | Fine-tuning cross-entropy |
-| `num_hard_negatives` | High-confidence-wrong examples accumulated |
+Two-seed replication (seeds 42, 43) confirms the direction and scale of both effects. Paper includes FPR analysis showing the self-score filter admits ~46% wrong examples by iteration 20 on the primary baseline.
 
 ---
 
-## Relation to Prior Work
-
-| Work | Relation |
-|------|----------|
-| **SRLM** (Yuan et al. 2024) | Qualitative observation of judge-generator collapse. We quantify it over 20 iterations and propose a mitigation. |
-| **STaR** (Zelikman et al. 2022) | Ground-truth-anchored — no collapse by design. We use this as our GT-anchored control condition. |
-| **AZR** (Zhao et al., NeurIPS 2025) | Eliminates human labels but delegates verification to a code executor. Externally grounded. Our collapse findings apply to domains without such an anchor. |
-| **Mind the Gap** (Song et al., ICLR 2025) | Measures filtering utility of self-verification (GV-Gap). We measure calibration drift (Δ_t). Orthogonal quantities — GV-Gap → 0 and Δ_t → large can coexist. |
-| **Beyond Accuracy** (Li et al. 2025) | Measures ECE on MMLU over 5 rounds. We measure Δ_t on MATH over 20 rounds. Different metric, domain, duration, and fix. |
-| **EpiCaR** (2026) | Calibration metrics on MATH over 3 iterations; fix requires objective modification. We extend to 20 iterations with a data-side-only fix. |
-| **RLSR** (2025) | Self-reward divergence under RL/GRPO. We show the same collapse in pure SFT — no RL pressure required. |
-| **Gao et al. 2023** | External RM scores diverge under optimisation pressure. We show the same divergence emerging endogenously with no external RM. |
-
----
-
-## Repository Structure
-
-```
-verification-collapse/
-├── run_experiment.py                    # Entry point (--config, --iterations)
-├── config.yaml                          # Reference config (full 20-iter / 500-sample)
-├── src/
-│   ├── experiment.py                    # Main loop: VerificationCollapseExperiment
-│   ├── verifier.py                      # ModelVerifier: generate, score, finetune
-│   ├── math_loader.py                   # MATH dataset loading + answer verification
-│   └── utils.py                         # compute_gap, summarise_iteration, hard-neg mining
-├── experiments/
-│   └── configs/
-│       ├── sanity_check.yaml            # 50 samples, 3 iters — quick smoke test
-│       ├── baseline.yaml                # 250 samples, 20 iters, injection DISABLED ✅
-│       ├── injection.yaml               # 250 samples, 20 iters, injection every 3 ✅
-│       ├── gt_anchored.yaml             # 500 samples, 20 iters, GT filter ✅
-│       ├── llama3_baseline.yaml         # 500 samples, 20 iters, Llama-3-8B ✅
-│       ├── mistral_baseline.yaml        # 500 samples, 20 iters, Mistral-7B ✅
-│       ├── random_negatives.yaml        # 500 samples, 20 iters, threshold=0.0 ⏳
-│       ├── injection_interval1.yaml     # 500 samples, 20 iters, inject every iter ⏳
-│       ├── injection_interval6.yaml     # 500 samples, 20 iters, inject every 6 ⏳
-│       ├── injection_ratio25.yaml       # 500 samples, 20 iters, 25% ratio ⏳
-│       └── math_l5_baseline.yaml        # 500 samples, 20 iters, Level 5 only ⏳
-├── data/
-│   └── math_subset.json                 # 250 MATH L3–5 problems, committed to git
-├── logs/                                # CSV outputs per run (gitignored)
-├── models/                              # Checkpoints (gitignored)
-├── notebooks/
-│   └── sanity_check.ipynb
-├── notes/
-│   └── lab_notebook.md                  # Updated after every run
-└── paper/
-    ├── draft.tex                        # Main LaTeX — compiles on Overleaf
-    ├── related_work.md                  # Positioning notes for §2
-    └── problem_statement.md             # Core claim and Δ_t definition
-```
-
----
-
-## Quickstart
+## How to run
 
 ### Requirements
 
@@ -156,53 +57,151 @@ verification-collapse/
 pip install -r requirements.txt
 ```
 
-Flash Attention 2 is optional but recommended for H100/A100. The code falls back to `sdpa` if unavailable.
+Flash Attention 2 is optional; the code falls back to PyTorch SDPA if it isn't installed.
 
-### Run sanity check (3 iterations, ~5 min on A100)
+### Smoke test (5 minutes on A100/H100)
 
 ```bash
 python run_experiment.py --config experiments/configs/sanity_check.yaml
 ```
 
-### Run an experiment (production)
+### Full experiment (2-3h on H100 SXM, MATH L3-5, Qwen2.5-7B)
 
 ```bash
-python run_experiment.py --config experiments/configs/baseline.yaml
+python run_experiment.py --config experiments/configs/baseline_500.yaml
 ```
 
-Results are written to `logs/<run_name>/metrics.csv`. W&B logging is optional — set `wandb.enabled: true` in the config if credentials are available.
+### Reproduce headline conditions
+
+| Finding | Config |
+|---|---|
+| Primary baseline (collapse) | `experiments/configs/baseline_500.yaml` |
+| Injection mitigation | `experiments/configs/injection.yaml` |
+| GT-anchored control (causal isolation) | `experiments/configs/gt_anchored.yaml` |
+| Full fine-tuning (LoRA confound test) | `experiments/configs/full_ft_baseline.yaml` |
+| Recovery from collapsed checkpoint | `experiments/configs/recovery.yaml` |
+| Cross-model: Mistral-7B | `experiments/configs/mistral_baseline.yaml` |
+| Cross-model: Llama-3-8B | `experiments/configs/llama3_baseline.yaml` |
+| Seed replication | `experiments/configs/baseline_seed43.yaml`, `injection_seed43.yaml` |
+
+Llama-3 runs need `export HF_TOKEN=hf_...` with an accepted Meta Llama 3 license.
+
+### RunPod (A100 PCIe or H100 SXM)
+
+```bash
+git clone https://github.com/Giusepe-3/Verification_Paper.git verification-collapse
+cd verification-collapse
+bash setup_runpod.sh <config_name>
+```
+
+`setup_runpod.sh` pins torch, skips flash-attn/bitsandbytes on pods where they segfault, and runs a pre-flight CUDA sanity check to detect broken pods before any training starts. See `CLAUDE.md` for known pod quirks (bitsandbytes segfaults, broken CUDA drivers, peft version pinning on H200).
+
+### Output
+
+Each run writes `logs/<run_name>/metrics.csv` with per-iteration rows:
+
+| Column | Meaning |
+|---|---|
+| `self_score_mean` | Mean self-assigned correctness on train batch |
+| `gt_score_train` | Mean ground-truth accuracy on train batch |
+| `gt_score_val` | Mean ground-truth accuracy on held-out val |
+| `gap` | $\Delta_t$ = `self_score_mean - gt_score_train` |
+| `loss` | Fine-tuning cross-entropy |
+| `num_hard_negatives` | High-confidence-wrong examples accumulated |
+
+W&B is optional (`wandb.enabled: true` in the config).
 
 ---
 
-## Experimental Status
+## Repo structure
 
-| Experiment | Status | Key Result |
-|------------|--------|------------|
-| Sanity check (3 iter, 40 samples) | ✅ | Signal direction correct |
-| Baseline — Qwen (20 iter, 200 samples) | ✅ | Gap 0.105→0.320 (3×) |
-| Injection — Qwen (20 iter, inject every 3) | ✅ | Steady-state gap ~0.170 (−47%) |
-| GT-anchored control — Qwen | ✅ | Gap decreases; gt_train +78% |
-| Llama-3-8B baseline | ✅ | Transient collapse (peak 0.368, iter 13) |
-| Mistral-7B baseline | ✅ | Immediate collapse (0.580→0.850) |
-| random_negatives | ⏳ | |
-| math_l5_baseline | ⏳ | |
-| injection_interval1/6, injection_ratio25 | ⏳ | |
+```
+Verification_Paper/
+├── run_experiment.py              # Entry point: --config path
+├── config.yaml                    # Reference 20-iter / 500-sample config
+├── requirements.txt
+├── src/
+│   ├── experiment.py              # Main loop; supports training_filter = self_score | gt_score
+│   ├── verifier.py                # ModelVerifier: generate, score, finetune
+│   ├── math_loader.py             # MATH dataset + answer extraction/verify
+│   └── utils.py                   # gap computation, hard-negative mining
+├── experiments/configs/           # One YAML per experimental condition
+├── setup_runpod.sh                # Single-experiment pod bootstrap
+├── setup_recovery_pod.sh          # baseline_500 -> recovery pipeline
+├── scripts/                       # Figure generation, FPR analysis
+├── data/                          # math_subset.json (250-problem subset, committed)
+├── logs/                          # Per-run CSVs (gitignored)
+├── models/                        # Checkpoints (gitignored)
+├── notes/lab_notebook.md          # Updated after every run
+├── paper/
+│   ├── draft.tex                  # Main LaTeX source
+│   ├── draft.pdf                  # Compiled paper
+│   ├── refs.bib
+│   ├── neurips_2026.sty
+│   └── figures/
+└── CLAUDE.md                      # Detailed project state + pod quirks
+```
 
 ---
 
-## Hardware Notes
+## Experimental status
 
-- **Minimum:** 80 GB VRAM — `gen_batch_size=128` fills ~77 GB. H100 PCIe or A100 80GB both work.
-- An explicit `torch.cuda.empty_cache()` after generation and after fine-tuning is required to avoid OOM on the backward pass.
-- BF16 (no quantization). DoRA disabled — caused 20+ min/sample latency with NF4.
-- Greedy decoding (`do_sample=False`) enforced throughout for deterministic scoring.
-- Llama-3 requires `export HF_TOKEN=hf_...` with accepted Meta Llama 3 license on HuggingFace.
+All experiments in the paper are complete.
+
+| Experiment | Status |
+|---|---|
+| Baseline, Qwen2.5-7B, 500 samples | Done |
+| Baseline, Qwen2.5-7B, 250 samples | Done |
+| Injection, Qwen2.5-7B | Done |
+| GT-anchored control | Done |
+| Llama-3-8B baseline | Done |
+| Mistral-7B baseline | Done |
+| Random negatives (any-wrong injection) | Done |
+| Llama-3 injection (cross-model generalisation) | Done |
+| Recovery (from collapsed checkpoint) | Done |
+| Full fine-tuning baseline (LoRA confound) | Done |
+| Seed 43 replication (baseline + injection) | Done |
+
+---
+
+## Hardware notes
+
+- **VRAM floor:** 80 GB. `gen_batch_size=128` fills ~77 GB; anything smaller OOMs on the backward pass after generation.
+- `torch.cuda.empty_cache()` is called after generation and after fine-tuning in each iteration; this is required, not a nice-to-have.
+- BF16 throughout. 4-bit quantization off. DoRA off (20+ min/sample latency under NF4).
+- Greedy decoding (`do_sample=False`) enforced for deterministic scoring.
+- Full fine-tuning of Qwen2.5-7B needs 141 GB (H200 SXM).
+
+---
+
+## Related work (summary)
+
+See `paper/related_work.md` for verified characterisations. One-line positioning:
+
+- **SRLM** (Yuan et al., 2024): 3-iter qualitative observation of judge-generator drift. We quantify it over 20 iterations with a causal control.
+- **STaR** (Zelikman et al., 2022): Ground-truth anchored by construction. We use this as our GT-anchored control condition.
+- **AZR** (Zhao et al., 2025): Closed loop but verification delegated to a code executor. Externally grounded; our findings apply to domains without such an anchor.
+- **Mind the Gap** (Song et al., ICLR 2025): Filtering utility (GV-Gap), not calibration drift. Orthogonal quantity; both can hold simultaneously.
+- **Beyond Accuracy** (Huang et al., 2025): ECE on MMLU, 5 rounds. Different metric, domain, duration, fix.
+- **EpiCaR** (2026): Calibration metrics on MATH, 3 iterations, objective-modification fix. We extend to 20 iterations with a data-side-only intervention.
+- **RLSR** (2025): Self-reward divergence under GRPO. We show the same collapse without RL pressure; pure iterative SFT suffices.
+- **Gao et al. (2023)**: External RM overoptimization. We show the same score-vs-reality divergence emerging endogenously with no external RM.
 
 ---
 
 ## Citation
 
-> Preprint forthcoming. NeurIPS 2026 submission.
+```bibtex
+@article{gianola2026verificationcollapse,
+  title     = {Verification Collapse in Iterative Self-Improving Language Models},
+  author    = {Gianola, Leonardo},
+  year      = {2026},
+  publisher = {Zenodo},
+  doi       = {10.5281/zenodo.19890194},
+  url       = {https://doi.org/10.5281/zenodo.19890194},
+  note      = {Preprint}
+}
+```
 
 ---
 

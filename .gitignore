@@ -55,3 +55,4 @@ wandb/
 
 # PDFs in repo root
 *.pdf
+.friday/
